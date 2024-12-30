@@ -28,14 +28,14 @@ from examples.example_utils import build_system, VanDerPol, InvertedPendulum, Ly
 import warnings
 warnings.filterwarnings("ignore")
 
-exp_num = 300
+exp_num = 400
 
 
-results_dir = '{}/results/exp_{:03d}_keep_eg3'.format(str(Path(__file__).parent.parent), exp_num)
+# results_dir = '{}/results/exp_{:03d}_keep_eg3'.format(str(Path(__file__).parent.parent), exp_num)
 # results_dir = '{}/results/exp_{:03d}'.format(str(Path(__file__).parent.parent), exp_num)
 # results_dir = '{}/results/exp_{:02d}_keep_eg3'.format(str(Path(__file__).parent.parent), exp_num)
 # results_dir = '{}/results/exp_{:02d}_eg3'.format(str(Path(__file__).parent.parent), exp_num)
-# results_dir = '{}/results/exp_{:02d}'.format(str(Path(__file__).parent.parent), exp_num)
+results_dir = '{}/results/exp_{:02d}'.format(str(Path(__file__).parent.parent), exp_num)
 
 #################### Draw roas ####################
 print("#################### Constrained RoA ####################")
@@ -75,7 +75,7 @@ fig = plt.figure(figsize=(10, 10), dpi=config.dpi, frameon=False)
 
 plt.rc('text', usetex=True)
 plt.rc('font', family='serif')
-labelsize =50
+labelsize = 50
 ticksize = 40
 legendsize = 38
 lw = 6
@@ -97,10 +97,11 @@ plt.ylabel("Ratios", fontsize=labelsize)
 # plt.ylim([0,0.6])
 plt.tick_params(axis='both', which='major', labelsize=ticksize, grid_linewidth=20)
 plt.tight_layout()
-# plt.savefig(os.path.join(results_dir, '00roa_ratio_large.eps'), dpi=config.dpi)
-plt.savefig(os.path.join(results_dir, '00roa_ratio.eps'), dpi=config.dpi)
+# plt.savefig(os.path.join(results_dir, '00roa_ratio_large.png'), dpi=config.dpi)
+plt.savefig(os.path.join(results_dir, '00roa_ratio.png'), dpi=config.dpi)
 plt.clf()
-assert(False)
+
+#assert(False)
 
 # #################### Draw trajs ####################
 
@@ -162,11 +163,15 @@ bound = 0.5
 #     args={'low_thresh':-bound, 'high_thresh':bound, 'low_slope':0.0, \
 #     'high_slope':0.0, 'train_slope':args.controller_train_slope})
 
-policy = mars.NonLinearControllerLooseThreshWithLinearPart(state_dim, controller_layer_dims,\
+# policy = mars.NonLinearControllerLooseThreshWithLinearPart(state_dim, controller_layer_dims,\
+#     -K, controller_layer_activations, initializer=torch.nn.init.xavier_uniform,\
+#     args={'low_thresh':-bound, 'high_thresh':bound, 'low_slope':0.0, \
+#     'high_slope':0.0, 'train_slope':args.controller_train_slope})
+
+policy = mars.NonLinearControllerLooseThreshWithLinearPartMulSlope(state_dim, controller_layer_dims,\
     -K, controller_layer_activations, initializer=torch.nn.init.xavier_uniform,\
     args={'low_thresh':-bound, 'high_thresh':bound, 'low_slope':0.0, \
-    'high_slope':0.0, 'train_slope':args.controller_train_slope})
-
+    'high_slope':0.0, 'train_slope':args.controller_train_slope, 'slope_multiplier':args.controller_slope_multiplier})
 
 policy = load_controller_nn(policy, full_path=os.path.join(results_dir, "trained_controller_nn_iter_{}.net".format(args.roa_outer_iters)))
 
@@ -246,7 +251,7 @@ plt.xlabel(r"time (s)", fontsize=labelsize)
 plt.ylabel(r"$x$", fontsize=labelsize)
 plt.ylim(plot_limits[0])
 plt.tight_layout()
-plt.savefig(os.path.join(results_dir, '00traj_test_x.eps'), dpi=config.dpi)
+plt.savefig(os.path.join(results_dir, '00traj_test_x.png'), dpi=config.dpi)
 plt.clf()
 
 for i in range(end_states.shape[0]):
@@ -258,7 +263,7 @@ plt.xlabel(r"time (s)", fontsize=labelsize)
 plt.ylabel(r"$\theta$", fontsize=labelsize)
 plt.ylim(plot_limits[1])
 plt.tight_layout()
-plt.savefig(os.path.join(results_dir, '00traj_test_theta.eps'), dpi=config.dpi)
+plt.savefig(os.path.join(results_dir, '00traj_test_theta.png'), dpi=config.dpi)
 plt.clf()
 
 for i in range(end_states.shape[0]):
@@ -270,7 +275,7 @@ plt.xlabel(r"time (s)", fontsize=labelsize)
 plt.ylabel(r"$v$", fontsize=labelsize)
 plt.ylim(plot_limits[2])
 plt.tight_layout()
-plt.savefig(os.path.join(results_dir, '00traj_test_v.eps'), dpi=config.dpi)
+plt.savefig(os.path.join(results_dir, '00traj_test_v.png'), dpi=config.dpi)
 plt.clf()
 
 for i in range(end_states.shape[0]):
@@ -282,7 +287,7 @@ plt.xlabel(r"time (s)", fontsize=labelsize)
 plt.ylabel(r"$\omega$", fontsize=labelsize)
 plt.ylim(plot_limits[3])
 plt.tight_layout()
-plt.savefig(os.path.join(results_dir, '00traj_test_omega.eps'), dpi=config.dpi)
+plt.savefig(os.path.join(results_dir, '00traj_test_omega.png'), dpi=config.dpi)
 plt.clf()
 
 for i in range(end_states.shape[0]):
@@ -295,7 +300,7 @@ plt.xlabel(r"time (s)", fontsize=labelsize)
 plt.ylabel(r"norm of states", fontsize=labelsize)
 # plt.ylim(plot_limits[3])
 plt.tight_layout()
-plt.savefig(os.path.join(results_dir, '00traj_test_norm.eps'), dpi=config.dpi)
+plt.savefig(os.path.join(results_dir, '00traj_test_norm.png'), dpi=config.dpi)
 plt.clf()
 
 for i in range(end_states.shape[0]):
@@ -309,4 +314,4 @@ plt.yticks(fontsize = ticksize)
 plt.xlabel(r"time (s)", fontsize=labelsize)
 plt.ylabel(r"$u$", fontsize=labelsize)
 plt.tight_layout()
-plt.savefig(os.path.join(results_dir, '00traj_test_u.eps'), dpi=config.dpi)
+plt.savefig(os.path.join(results_dir, '00traj_test_u.png'), dpi=config.dpi)

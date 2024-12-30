@@ -7,6 +7,7 @@ import numpy as np
 import sys
 import math
 import matplotlib
+matplotlib.rcParams.update(matplotlib.rcParamsDefault)
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 import copy
@@ -98,7 +99,7 @@ input_args_str = "\
 --controller_train_slope True\
 --verbose True\
 --image_save_format pdf\
---exp_num 99\
+--exp_num 100\
 --use_cuda False"
 
 input_args_temp = input_args_str.split("--")
@@ -195,6 +196,11 @@ policy = mars.NonLinearControllerLooseThreshWithLinearPart(state_dim, controller
     -K, controller_layer_activations, initializer=torch.nn.init.xavier_uniform,\
     args={'low_thresh':-bound, 'high_thresh':bound, 'low_slope':0.0, \
     'high_slope':0.0, 'train_slope':args.controller_train_slope})
+
+# policy = mars.NonLinearControllerLooseThreshWithLinearPartMulSlope(state_dim, controller_layer_dims,\
+#     -K, controller_layer_activations, initializer=torch.nn.init.xavier_uniform,\
+#     args={'low_thresh':-bound, 'high_thresh':bound, 'low_slope':0.0, \
+#     'high_slope':0.0, 'train_slope':args.controller_train_slope, 'slope_multiplier':args.controller_slope_multiplier})
 
 save_controller_nn(policy, full_path=os.path.join(results_dir, 'init_controller_nn.net'))
 

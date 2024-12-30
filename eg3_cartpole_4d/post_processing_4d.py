@@ -43,11 +43,11 @@ import random
 import argparse
 warnings.filterwarnings("ignore")
 
-exp_num = 300
+exp_num = 400
 
-results_dir = '{}/results/exp_{:03d}_keep_eg3'.format(str(Path(__file__).parent.parent), exp_num)
+# results_dir = '{}/results/exp_{:03d}_keep_eg3'.format(str(Path(__file__).parent.parent), exp_num)
 # results_dir = '{}/results/exp_{:02d}_keep_eg3'.format(str(Path(__file__).parent.parent), exp_num)
-# results_dir = '{}/results/exp_{:02d}'.format(str(Path(__file__).parent.parent), exp_num)
+results_dir = '{}/results/exp_{:02d}'.format(str(Path(__file__).parent.parent), exp_num)
 
 with open(os.path.join(results_dir, "00hyper_parameters.txt"), "r") as f:
     lines = f.readlines()
@@ -124,7 +124,7 @@ controller_layer_activations = eval(args.controller_nn_activations)
 # policy = mars.NonLinearControllerLooseThreshWithLinearPart(state_dim, controller_layer_dims,\
 #     -K, controller_layer_activations, initializer=torch.nn.init.xavier_uniform,\
 #     args={'low_thresh':-bound, 'high_thresh':bound, 'low_slope':0.0, \
-    # 'high_slope':0.0, 'train_slope':args.controller_train_slope})
+#     'high_slope':0.0, 'train_slope':args.controller_train_slope})
 
 policy = mars.NonLinearControllerLooseThreshWithLinearPartMulSlope(state_dim, controller_layer_dims,\
     -K, controller_layer_activations, initializer=torch.nn.init.xavier_uniform,\

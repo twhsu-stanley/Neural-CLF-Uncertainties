@@ -97,7 +97,7 @@ input_args_str = "\
 --controller_train_slope True\
 --verbose True\
 --image_save_format pdf\
---exp_num 300\
+--exp_num 400\
 --use_cuda False\
 --cutoff_radius 0.4"
 
@@ -312,9 +312,10 @@ nominal_closed_loop_dynamics = lambda states: partial_closed_loop_dynamics(state
         torch.mul(control_vec_nn(states), policy(torch.tensor(states, device=device)))), dim=1)
 
 sampling_time = 0.001
-# dot_vnn = lambda x: torch.sum(torch.mul(lyapunov_nn.grad_lyapunov_function(x), closed_loop_dynamics(x)),1)
-dot_vnn_nd = lambda x: torch.squeeze((lyapunov_nn.lyapunov_function(torch.tensor(x, dtype = config.ptdtype, device=device)\
-    + closed_loop_dynamics(x)*sampling_time) - lyapunov_nn.lyapunov_function(x))/sampling_time)
+dot_vnn = lambda x: torch.sum(torch.mul(lyapunov_nn.grad_lyapunov_function(x), closed_loop_dynamics(x)),1)
+dot_vnn_nd = dot_vnn # TODO: temporary code for testing
+#dot_vnn_nd = lambda x: torch.squeeze((lyapunov_nn.lyapunov_function(torch.tensor(x, dtype = config.ptdtype, device=device)\
+#    + closed_loop_dynamics(x)*sampling_time) - lyapunov_nn.lyapunov_function(x))/sampling_time)
 nominal_dot_vnn = lambda x: torch.sum(torch.mul(lyapunov_nn.grad_lyapunov_function(x), nominal_closed_loop_dynamics(x)),1)
 
 
