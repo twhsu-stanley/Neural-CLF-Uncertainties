@@ -201,9 +201,9 @@ all_systems["backstepping_3d_2_nominal"] = system_properties(system_dict)
 state_dim = 4
 action_dim = 1
 x_max = np.float64(1)
-theta_max = np.float64(np.pi/4)
-v_max = np.float64(2)
-omega_max = np.float64(2)
+theta_max = np.float64(np.pi/6)
+v_max = np.float64(1.5)
+omega_max = np.float64(1)
 
 state_norm = (x_max, theta_max, v_max, omega_max) # Match the order of the states !!!
 system_dict = { "type": "cartpole",
@@ -226,10 +226,10 @@ action_dim = 1
 system_dict = { "type": "cartpole",
                 "state_dim": 4,
                 "action_dim": 1,
-                "M":1*0.8, 
-                "m":0.3*0.9,
+                "M":1, 
+                "m":0.3,
                 "g":9.81,
-                "l":1*0.8,
+                "l":1,
                 "b":0,
                 }
 u_max = np.float64(10)

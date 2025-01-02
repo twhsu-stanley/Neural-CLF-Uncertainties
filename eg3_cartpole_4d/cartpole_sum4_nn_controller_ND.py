@@ -46,7 +46,7 @@ import argparse
 warnings.filterwarnings("ignore")
 
 input_args_str = "\
---system cartpole2\
+--system cartpole1\
 --dt 0.01\
 --drift_vector_nn_sizes [16,16,16,2]\
 --drift_vector_nn_activations ['tanh','tanh','tanh','identity']\
@@ -97,7 +97,7 @@ input_args_str = "\
 --controller_train_slope True\
 --verbose True\
 --image_save_format pdf\
---exp_num 400\
+--exp_num 800\
 --use_cuda False\
 --cutoff_radius 0.4"
 

@@ -24,11 +24,12 @@ from mars.parser_tools import getArgs
 from examples.systems_config import all_systems 
 from examples.example_utils import build_system, VanDerPol, InvertedPendulum, LyapunovNetwork, compute_roa_ct, balanced_class_weights, generate_trajectories, save_dict, load_dict
 
+from systems import CartPole
 
 import warnings
 warnings.filterwarnings("ignore")
 
-exp_num = 500
+exp_num = 600
 
 # results_dir = '{}/results/exp_{:03d}_keep_eg3'.format(str(Path(__file__).parent.parent), exp_num)
 # results_dir = '{}/results/exp_{:03d}'.format(str(Path(__file__).parent.parent), exp_num)
@@ -119,40 +120,70 @@ device = config.device
 print('Pytorch using device:', device)
 
 # Set random seed
-torch.manual_seed(0)
-np.random.seed(0)
-# Choosing the system
-dt = args.dt   # sampling time
-# System properties
-system_properties = all_systems[args.system]
-nominal_system_properties = all_systems[args.system + '_nominal']
-state_dim     = system_properties.state_dim
-action_dim    = system_properties.action_dim
-state_limits  = np.array([[-1., 1.]] * state_dim)
-action_limits = np.array([[-1., 1.]] * action_dim)
-resolution = args.grid_resolution
+seed_num = 0
+torch.manual_seed(seed_num)
+np.random.seed(seed_num)
 
-# Initialize system class and its linearization
-system = build_system(system_properties, dt)
-nominal_system = build_system(nominal_system_properties, dt)
-A, B = nominal_system.linearize_ct()
-dynamics = lambda x, y: system.ode_normalized(x, y)
+# Sampling time
+dt = args.dt
+
+# Construct the true and nominal systems #############################################################
+# State and control limits
+x_max = np.float64(1)
+theta_max = np.float64(np.pi/6)
+v_max = np.float64(1.5)
+omega_max = np.float64(1)
+u_max = np.float64(10)
+
+state_norm = (x_max, theta_max, v_max, omega_max) # Match the order of the states !!!
+action_norm = (u_max,)
+
+#1. Construct the true system
+# True system params
+m_true = 0.3 # pendulum mass
+M_true = 1 # cart mass
+l_true = 1 # length
+b_true = 0 # friction coeff
+
+# Initialize the true system
+true_system = CartPole(m_true, M_true, l_true, b_true, dt, [state_norm, action_norm])
+
+# Open-loop true dynamics
+true_dynamics = lambda x, y: true_system.ode_normalized(x, y)
+
+state_dim = true_system.state_dim
+action_dim = true_system.action_dim
+
+#2. Construct the nominal system
+# Nominal system params
+m_nominal = 0.3 # pendulum mass
+M_nominal = 1 # cart mass
+l_nominal = 1 # length
+b_nominal = 0 # friction coeff
+
+# Initialize the nominal system
+nominal_system = CartPole(m_nominal, M_nominal, l_nominal, b_nominal, dt, [state_norm, action_norm])
+
+# Open-loop nominal dynamics
 nominal_dynamics = lambda x, y: nominal_system.ode_normalized(x, y)
 
+# Set up computation domain and the initial safe set
 # State grid
 grid_limits = np.array([[-1., 1.], ] * state_dim)
+resolution = args.grid_resolution # Number of states divisions each dimension
 grid = mars.GridWorld(grid_limits, resolution)
 tau = np.sum(grid.unit_maxes) / 2
-u_max = system.normalization[1].item()
-Tx, Tu = map(np.diag, system.normalization)
-Tx_inv, Tu_inv = map(np.diag, system.inv_norm)
+u_max = true_system.normalization[1].item()
+Tx, Tu = map(np.diag, true_system.normalization)
+Tx_inv, Tu_inv = map(np.diag, true_system.inv_norm)
 
 # Set initial safe set as a ball around the origin (in normalized coordinates)
 cutoff_radius    = 0.05
 initial_safe_set = np.linalg.norm(grid.all_points, ord=2, axis=1) <= cutoff_radius
 
-# LQR policy and its true ROA
-K = np.zeros((system_properties.action_dim, system_properties.state_dim), dtype = config.np_dtype)
+# LQR policy
+A, B = nominal_system.linearize_ct()
+K = np.zeros((action_dim, state_dim), dtype = config.np_dtype)
 
 controller_layer_dims = eval(args.controller_nn_sizes)
 controller_layer_activations = eval(args.controller_nn_activations)
@@ -161,12 +192,10 @@ bound = 0.5
 #     controller_layer_activations, initializer=torch.nn.init.xavier_uniform,\
 #     args={'low_thresh':-bound, 'high_thresh':bound, 'low_slope':0.0, \
 #     'high_slope':0.0, 'train_slope':args.controller_train_slope})
-
 # policy = mars.NonLinearControllerLooseThreshWithLinearPart(state_dim, controller_layer_dims,\
 #     -K, controller_layer_activations, initializer=torch.nn.init.xavier_uniform,\
 #     args={'low_thresh':-bound, 'high_thresh':bound, 'low_slope':0.0, \
 #     'high_slope':0.0, 'train_slope':args.controller_train_slope})
-
 policy = mars.NonLinearControllerLooseThreshWithLinearPartMulSlope(state_dim, controller_layer_dims,\
     -K, controller_layer_activations, initializer=torch.nn.init.xavier_uniform,\
     args={'low_thresh':-bound, 'high_thresh':bound, 'low_slope':0.0, \
@@ -174,9 +203,8 @@ policy = mars.NonLinearControllerLooseThreshWithLinearPartMulSlope(state_dim, co
 
 policy = load_controller_nn(policy, full_path=os.path.join(results_dir, "trained_controller_nn_iter_{}.net".format(args.roa_outer_iters)))
 
-
 # Close loop dynamics and true region of attraction
-closed_loop_dynamics = lambda states: dynamics(torch.tensor(states, device = device), policy(torch.tensor(states, device = device)))
+closed_loop_dynamics = lambda states: true_dynamics(torch.tensor(states, device = device), policy(torch.tensor(states, device = device)))
 
 # horizon = 4000 
 # tol = 0.01 
@@ -216,7 +244,7 @@ print(np.sum(ind))
 plot_limits = np.dot(Tx, grid_limits)
 # print(plot_limits)
 # assert(False)
-closed_loop_dynamics = lambda states: dynamics(torch.tensor(states, device = device), policy(torch.tensor(states, device = device)))
+#closed_loop_dynamics = lambda states: dynamics(torch.tensor(states, device = device), policy(torch.tensor(states, device = device)))
 
 horizon = 600 
 dt = 0.01

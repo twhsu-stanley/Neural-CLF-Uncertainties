@@ -9,7 +9,6 @@ from scipy import signal
 from matplotlib.colors import ListedColormap
 import sys
 sys.path.insert(0, '../')
-from mars import config, DeterministicFunction, GridWorld
 from mars.utils import dict2func
 import torch
 from mars import config, DeterministicFunction, GridWorld, PTPDNet,\
@@ -19,31 +18,6 @@ from mars.utils import concatenate_inputs
 import pickle 
 
 __all__ = ['build_system', 'InvertedPendulum', 'CartPole', 'VanDerPol', 'LyapunovNetwork', 'compute_roa', 'generate_trajectories', 'save_dict', 'load_dict']
-
-
-def import_from_directory(library, path):
-    """Import a library from a directory outside the path.
-
-    Parameters
-    ----------
-    library: string
-        The name of the library.
-    path: string
-        The path of the folder containing the library.
-
-    """
-    try:
-        return importlib.import_module(library)
-    except ImportError:
-        module_path = os.path.abspath(path)
-        version = sys.version_info
-
-        if version.major == 2:
-            f, filename, desc = imp.find_module(library, [module_path])
-            return imp.load_module(library, f, filename, desc)
-        else:
-            sys.path.append(module_path)
-            return importlib.import_module(library)
 
 class LyapunovNetwork(DeterministicFunction):
     def __init__(self, input_dim, structure, layer_dims, activations, eps=1e-6,
@@ -294,6 +268,7 @@ class DuffingOscillator(DeterministicFunction):
         sys = signal.StateSpace(A, B, np.eye(2), np.zeros((2, 1)))
         sysd = sys.to_discrete(self.dt)
         return sysd.A, sysd.B
+
 
 class InvertedPendulum(DeterministicFunction):
     """Inverted Pendulum.
@@ -693,7 +668,6 @@ class Backstepping_3D(DeterministicFunction):
 
         # Normalize
         return self.normalize(state_derivative, None)[0]
-
 
 
 class CartPole(DeterministicFunction):
@@ -1150,6 +1124,7 @@ class VanDerPol(DeterministicFunction):
         state_derivative = torch.cat((x_dot, y_dot), dim=1)
         return state_derivative
 
+
 def compute_roa(grid, closed_loop_dynamics, horizon=100, tol=1e-3, equilibrium=None, no_traj=True):
     """Compute the largest ROA as a set of states in a discretization.
     
@@ -1365,7 +1340,6 @@ def derivative_monomials(x, deg):
         Z = np.concatenate((Z, temp), axis=1)
     return Z
 
-
 def binary_cmap(color='red', alpha=1.):
     """Construct a binary colormap."""
     if color == 'red':
@@ -1378,8 +1352,6 @@ def binary_cmap(color='red', alpha=1.):
         color_code = color
     transparent_code = (1., 1., 1., 0.)
     return ListedColormap([transparent_code, color_code])
-
-
 
 def balanced_class_weights(y_true, scale_by_total=True):
     """Compute class weights from class label counts."""
@@ -1396,7 +1368,6 @@ def balanced_class_weights(y_true, scale_by_total=True):
 
     return weights, class_counts
 
-
 def generate_trajectories(states_init, closed_loop_dynamics, dt, horizon):
     if isinstance(states_init, np.ndarray):
         states_init = torch.tensor(np.copy(states_init), dtype=config.ptdtype, device = config.device)
@@ -1412,7 +1383,6 @@ def generate_trajectories(states_init, closed_loop_dynamics, dt, horizon):
             trajectories[:, :, t] = closed_loop_dynamics(trajectories[:, :, t - 1])
             grad_field[:, :, t-1] = (trajectories[:, :, t] - trajectories[:, :, t-1]) / dt
     return trajectories[:,:, 0:-1], grad_field
-
 
 def build_system(system_properties, dt):
     """
@@ -1440,4 +1410,3 @@ def load_dict(fullname):
     with open(fullname, 'rb') as handle:
         loaded_obj = pickle.load(handle)
     return loaded_obj
-
