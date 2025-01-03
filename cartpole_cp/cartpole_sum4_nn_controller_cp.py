@@ -87,7 +87,7 @@ input_args_str = "\
 --controller_train_slope True\
 --verbose True\
 --image_save_format pdf\
---exp_num 600\
+--exp_num 700\
 --use_cuda False\
 --cutoff_radius 0.4"
 
@@ -143,13 +143,13 @@ l_true = 1 # length
 b_true = 0 # friction coeff
 
 # Initialize the true system
-true_system = CartPole(m_true, M_true, l_true, b_true, dt, [state_norm, action_norm])
+system_true = CartPole(m_true, M_true, l_true, b_true, dt, [state_norm, action_norm])
 
 # Open-loop true dynamics
-true_dynamics = lambda x, y: true_system.ode_normalized(x, y)
+dynamics_true = lambda x, y: system_true.ode_normalized(x, y)
 
-state_dim = true_system.state_dim
-action_dim = true_system.action_dim
+state_dim = system_true.state_dim
+action_dim = system_true.action_dim
 
 # Save true system params in a txt file
 with open(os.path.join(results_dir, "00true_system_params.txt"), "w") as text_file:
@@ -182,10 +182,10 @@ l_nominal = 1 # length
 b_nominal = 0 # friction coeff
 
 # Initialize the nominal system
-nominal_system = CartPole(m_nominal, M_nominal, l_nominal, b_nominal, dt, [state_norm, action_norm])
+system_nominal = CartPole(m_nominal, M_nominal, l_nominal, b_nominal, dt, [state_norm, action_norm])
 
 # Open-loop nominal dynamics
-nominal_dynamics = lambda x, y: nominal_system.ode_normalized(x, y)
+dynamics_nominal = lambda x, y: system_nominal.ode_normalized(x, y)
 
 # Set up computation domain and the initial safe set
 # State grid
@@ -193,9 +193,9 @@ grid_limits = np.array([[-1., 1.], ] * state_dim)
 resolution = args.grid_resolution # Number of states divisions each dimension
 grid = mars.GridWorld(grid_limits, resolution)
 tau = np.sum(grid.unit_maxes) / 2
-u_max = true_system.normalization[1].item()
-Tx, Tu = map(np.diag, true_system.normalization)
-Tx_inv, Tu_inv = map(np.diag, true_system.inv_norm)
+u_max = system_true.normalization[1].item()
+Tx, Tu = map(np.diag, system_true.normalization)
+Tx_inv, Tu_inv = map(np.diag, system_true.inv_norm)
 
 # Set initial safe set as a ball around the origin (in normalized coordinates)
 cutoff_radius    = args.cutoff_radius
@@ -203,7 +203,7 @@ initial_safe_set = np.linalg.norm(grid.all_points, ord=2, axis=1) <= cutoff_radi
 
 # Control Policies ####################################################################################
 #1. LQR policy
-A, B = nominal_system.linearize_ct()
+A, B = system_nominal.linearize_ct()
 Q = np.identity(state_dim).astype(config.np_dtype)  # state cost matrix
 R = np.identity(action_dim).astype(config.np_dtype)  # action cost matrix
 K_lqr, P_lqr = mars.utils.lqr(A, B, Q, R)
@@ -223,13 +223,13 @@ print("Policy:", policy.mul_low_slope_param, policy.mul_high_slope_param)
 print("Trainable Parameters (policy): ", count_parameters(policy))
 
 # Close loop dynamics with NN control policy
-true_closed_loop_dynamics = lambda states: true_dynamics(torch.tensor(states, device = device), policy(torch.tensor(states, device = device)))
-nominal_closed_loop_dynamics = lambda states: nominal_dynamics(torch.tensor(states, device = device), policy(torch.tensor(states, device = device)))
+closed_loop_dynamics_true = lambda states: dynamics_true(torch.tensor(states, device = device), policy(torch.tensor(states, device = device)))
+closed_loop_dynamics_nominal = lambda states: dynamics_nominal(torch.tensor(states, device = device), policy(torch.tensor(states, device = device)))
 
 # True initial ROA with NN control policy
 horizon = 2500 # smaller tol requires longer horizon to give an accurate estimate of ROA
 tol = 0.01 # how much close to origin must be x(T) to be considered as stable trajectory
-roa_true = compute_roa_ct(grid, true_closed_loop_dynamics, dt, horizon, tol, no_traj=True)
+roa_true = compute_roa_ct(grid, closed_loop_dynamics_true, dt, horizon, tol, no_traj=True)
 print("Size of ROA init:", np.sum(roa_true))
 #######################################################################################################
 
@@ -239,11 +239,11 @@ L_pol = lambda x: np.linalg.norm(-K, 1) # # Policy (linear)
 L_dyn = lambda x: np.linalg.norm(A, 1) + np.linalg.norm(B, 1) * L_pol(x) # Dynamics (linear approximation)
 lyapunov_function = mars.QuadraticFunction(P_lqr)
 grad_lyapunov_function = mars.LinearSystem((2 * P_lqr,))
-#dot_v_lqr = lambda x: torch.sum(torch.mul(grad_lyapunov_function(x), true_closed_loop_dynamics(x)),1)
+#dot_v_lqr = lambda x: torch.sum(torch.mul(grad_lyapunov_function(x), closed_loop_dynamics_true(x)),1)
 L_v = lambda x: torch.norm(grad_lyapunov_function(x), p=1, dim=1, keepdim=True) # Lipschitz constant of the Lyapunov function
 L_dv = lambda x: torch.norm(torch.tensor(2 * P_lqr, dtype=config.ptdtype, device=device))
 lyapunov_lqr = mars.Lyapunov_CT(grid, lyapunov_function, grad_lyapunov_function,\
-     true_closed_loop_dynamics, nominal_closed_loop_dynamics, L_dyn, L_v, L_dv, tau, initial_safe_set, decrease_thresh=0)
+     closed_loop_dynamics_true, closed_loop_dynamics_nominal, L_dyn, L_v, L_dv, tau, initial_safe_set, decrease_thresh=0)
 lyapunov_lqr.update_values()
 lyapunov_lqr.update_safe_set('true', roa_true)
 lyapunov_lqr.update_exp_stable_set(args.roa_decrease_alpha, 'true', roa_true)
@@ -261,10 +261,9 @@ print("Exp stable size (LQR): {}".format(lyapunov_lqr.exp_stable_set_true.sum())
 layer_dims = eval(args.roa_nn_sizes)
 layer_activations = eval(args.roa_nn_activations)
 decrease_thresh = args.lyapunov_decrease_threshold
-lyapunov_nn, grad_lyapunov_nn, dv_nn, L_v, tau = initialize_lyapunov_nn(grid, true_closed_loop_dynamics, nominal_closed_loop_dynamics, L_dyn, 
+lyapunov_nn, grad_lyapunov_nn, dv_nn, L_v, tau = initialize_lyapunov_nn(grid, closed_loop_dynamics_true, closed_loop_dynamics_nominal, L_dyn, 
             initial_safe_set, decrease_thresh, args.roa_nn_structure, state_dim, layer_dims, 
             layer_activations)
-
 lyapunov_nn.update_values()
 lyapunov_nn.update_safe_set('true', roa_true)
 lyapunov_nn.update_exp_stable_set(args.roa_decrease_alpha,'true', roa_true)
@@ -283,7 +282,7 @@ print("Exp stable size (NN init): {}".format(lyapunov_nn.exp_stable_set_true.sum
 # Initialize quadratic Lyapunov
 P = 0.1 * np.eye(state_dim)
 lyapunov_pre, grad_lyapunov_pre, L_v_pre, L_dv_pre, tau = \
-      initialize_lyapunov_quadratic(grid, P, true_closed_loop_dynamics, nominal_closed_loop_dynamics, L_dyn, 
+      initialize_lyapunov_quadratic(grid, P, closed_loop_dynamics_true, closed_loop_dynamics_nominal, L_dyn, 
                                     initial_safe_set, decrease_thresh)
 lyapunov_pre.update_values()
 lyapunov_pre.update_safe_set('true', roa_true)
@@ -324,17 +323,17 @@ control_vec_nn = mars.DynamicsNet(state_dim, layer_dims, layer_activations, init
 layer_dims = eval(args.drift_vector_nn_sizes)
 layer_activations = eval(args.drift_vector_nn_activations)
 drift_vec_nn = mars.DynamicsNet(state_dim, layer_dims, layer_activations, initializer=torch.nn.init.xavier_uniform).to(device)
-nominal_closed_loop_dynamics = lambda states: nominal_closed_loop_dynamics_0(states) \
+closed_loop_dynamics_nominal = lambda states: closed_loop_dynamics_nominal_0(states) \
     + torch.cat((torch.zeros([len(states),2], dtype = config.ptdtype, device=device), drift_vec_nn(states)), dim=1)\
     + torch.cat((torch.zeros([len(states),2], dtype = config.ptdtype, device=device), \
         torch.mul(control_vec_nn(states), policy(torch.tensor(states, device=device)))), dim=1)
 
 sampling_time = 0.001
-dot_vnn = lambda x: torch.sum(torch.mul(lyapunov_nn.grad_lyapunov_function(x), true_closed_loop_dynamics(x)),1)
+dot_vnn = lambda x: torch.sum(torch.mul(lyapunov_nn.grad_lyapunov_function(x), closed_loop_dynamics_true(x)),1)
 dot_vnn_nd = dot_vnn # TODO: temporary code for testing
 #dot_vnn_nd = lambda x: torch.squeeze((lyapunov_nn.lyapunov_function(torch.tensor(x, dtype = config.ptdtype, device=device)\
-#    + true_closed_loop_dynamics(x)*sampling_time) - lyapunov_nn.lyapunov_function(x))/sampling_time)
-nominal_dot_vnn = lambda x: torch.sum(torch.mul(lyapunov_nn.grad_lyapunov_function(x), nominal_closed_loop_dynamics(x)),1)
+#    + closed_loop_dynamics_true(x)*sampling_time) - lyapunov_nn.lyapunov_function(x))/sampling_time)
+nominal_dot_vnn = lambda x: torch.sum(torch.mul(lyapunov_nn.grad_lyapunov_function(x), closed_loop_dynamics_nominal(x)),1)
 
 print("Pretrain the dynamics error network:")
 target_idx = lyapunov_nn.values.detach().cpu().numpy().ravel() <= lyapunov_nn.c_max_exp_true*(args.roa_level_multiplier +1)
@@ -345,10 +344,10 @@ train_dynamics_sample_in_batch_Adam(target_set, dot_vnn_nd, nominal_dot_vnn, dri
 save_dynamics_nn(drift_vec_nn, full_path=os.path.join(results_dir, 'pretrained_drift_vec_nn.net'))
 save_dynamics_nn(control_vec_nn, full_path=os.path.join(results_dir, 'pretrained_control_vec_nn.net'))
 
-#nominal_closed_loop_dynamics = lambda states: nominal_closed_loop_dynamics_0(states)
-# TODO: merge this with the parts above; no need to set nominal_closed_loop_dynamics = None at first
-lyapunov_nn.closed_loop_dynamics_nominal = nominal_closed_loop_dynamics
-lyapunov_lqr.closed_loop_dynamics_nominal = nominal_closed_loop_dynamics
+#closed_loop_dynamics_nominal = lambda states: closed_loop_dynamics_nominal_0(states)
+# TODO: merge this with the parts above; no need to set closed_loop_dynamics_nominal = None at first
+lyapunov_nn.closed_loop_dynamics_nominal = closed_loop_dynamics_nominal
+lyapunov_lqr.closed_loop_dynamics_nominal = closed_loop_dynamics_nominal
 lyapunov_nn.update_values()
 lyapunov_nn.update_safe_set('nominal', roa_true)
 lyapunov_nn.update_exp_stable_set(args.roa_decrease_alpha, 'nominal', roa_true)
@@ -468,7 +467,7 @@ for k in range(args.roa_outer_iters):
     save_dynamics_nn(drift_vec_nn, full_path=os.path.join(results_dir, 'trained_drift_vec_nn_iter_{}.net'.format(k+1)))
     save_dynamics_nn(control_vec_nn, full_path=os.path.join(results_dir, 'trained_control_vec_nn_iter_{}.net'.format(k+1)))
     """
-    train_largest_ROA_Adam(target_set, lyapunov_nn, policy, nominal_closed_loop_dynamics, args.roa_batchsize,
+    train_largest_ROA_Adam(target_set, lyapunov_nn, policy, closed_loop_dynamics_nominal, args.roa_batchsize,
         args.roa_inner_iters, roa_lr, controller_lr,
         args.roa_decrease_alpha, args.roa_decrease_offset, args.roa_size_beta,
         args.roa_decrease_loss_coeff, args.roa_lipschitz_loss_coeff, args.roa_size_loss_coeff,
@@ -479,7 +478,7 @@ for k in range(args.roa_outer_iters):
     print("Policy:", policy.mul_low_slope_param, policy.mul_high_slope_param)
     
     horizon = 4000
-    roa_true = compute_roa_ct(grid, true_closed_loop_dynamics, dt, horizon, tol, no_traj=True) # True ROA
+    roa_true = compute_roa_ct(grid, closed_loop_dynamics_true, dt, horizon, tol, no_traj=True) # True ROA
     
     lyapunov_nn.update_values()
     lyapunov_nn.update_safe_set('true', roa_true)
