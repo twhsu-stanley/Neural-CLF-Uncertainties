@@ -251,7 +251,7 @@ class GridWorld(object):
 
         self.limits = np.atleast_2d(limits).astype(config.np_dtype)
         num_points = np.broadcast_to(num_points, len(self.limits))
-        self.num_points = num_points.astype(np.int, copy=False)
+        self.num_points = num_points.astype(np.int_, copy=False)
 
         if np.any(self.num_points < 2):
             raise DimensionError('There must be at least 2 points in each '
