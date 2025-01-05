@@ -32,7 +32,7 @@ from mars.parser_tools import getArgs
 from examples.systems_config import all_systems 
 from examples.example_utils import build_system, VanDerPol, InvertedPendulum, LyapunovNetwork, compute_roa_ct, balanced_class_weights, generate_trajectories, save_dict, load_dict
 
-from systems import CartPole
+from systems import CartPole, CartPole_SINDy
 
 try:
     from tqdm import tqdm
@@ -44,7 +44,7 @@ import random
 import argparse
 warnings.filterwarnings("ignore")
 
-exp_num = 600
+exp_num = 1000
 
 # results_dir = '{}/results/exp_{:03d}_keep_eg3'.format(str(Path(__file__).parent.parent), exp_num)
 # results_dir = '{}/results/exp_{:02d}_keep_eg3'.format(str(Path(__file__).parent.parent), exp_num)
@@ -107,7 +107,8 @@ l_nominal = 1 # length
 b_nominal = 0 # friction coeff
 
 # Initialize the nominal system
-nominal_system = CartPole(m_nominal, M_nominal, l_nominal, b_nominal, dt, [state_norm, action_norm])
+#nominal_system = CartPole(m_nominal, M_nominal, l_nominal, b_nominal, dt, [state_norm, action_norm])
+nominal_system = CartPole_SINDy(dt, [state_norm, action_norm])
 
 # Open-loop nominal dynamics
 nominal_dynamics = lambda x, y: nominal_system.ode_normalized(x, y)

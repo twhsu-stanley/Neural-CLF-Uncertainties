@@ -24,12 +24,12 @@ from mars.parser_tools import getArgs
 from examples.systems_config import all_systems 
 from examples.example_utils import build_system, VanDerPol, InvertedPendulum, LyapunovNetwork, compute_roa_ct, balanced_class_weights, generate_trajectories, save_dict, load_dict
 
-from systems import CartPole
+from systems import CartPole, CartPole_SINDy
 
 import warnings
 warnings.filterwarnings("ignore")
 
-exp_num = 600
+exp_num = 1000
 
 # results_dir = '{}/results/exp_{:03d}_keep_eg3'.format(str(Path(__file__).parent.parent), exp_num)
 # results_dir = '{}/results/exp_{:03d}'.format(str(Path(__file__).parent.parent), exp_num)
@@ -97,8 +97,8 @@ plt.ylabel("Ratios", fontsize=labelsize)
 # plt.ylim([0,0.6])
 plt.tick_params(axis='both', which='major', labelsize=ticksize, grid_linewidth=20)
 plt.tight_layout()
-# plt.savefig(os.path.join(results_dir, '00roa_ratio_large.png'), dpi=config.dpi)
-plt.savefig(os.path.join(results_dir, '00roa_ratio.png'), dpi=config.dpi)
+# plt.savefig(os.path.join(results_dir, '00roa_ratio_large.pdf'), dpi=config.dpi)
+plt.savefig(os.path.join(results_dir, '00roa_ratio.pdf'), dpi=config.dpi)
 plt.clf()
 
 #assert(False)
@@ -147,6 +147,7 @@ b_true = 0 # friction coeff
 
 # Initialize the true system
 true_system = CartPole(m_true, M_true, l_true, b_true, dt, [state_norm, action_norm])
+#true_system = CartPole_SINDy(dt, [state_norm, action_norm])
 
 # Open-loop true dynamics
 true_dynamics = lambda x, y: true_system.ode_normalized(x, y)
@@ -162,7 +163,8 @@ l_nominal = 1 # length
 b_nominal = 0 # friction coeff
 
 # Initialize the nominal system
-nominal_system = CartPole(m_nominal, M_nominal, l_nominal, b_nominal, dt, [state_norm, action_norm])
+#nominal_system = CartPole(m_nominal, M_nominal, l_nominal, b_nominal, dt, [state_norm, action_norm])
+nominal_system = CartPole_SINDy(dt, [state_norm, action_norm])
 
 # Open-loop nominal dynamics
 nominal_dynamics = lambda x, y: nominal_system.ode_normalized(x, y)
@@ -278,7 +280,7 @@ plt.xlabel(r"time (s)", fontsize=labelsize)
 plt.ylabel(r"$x$", fontsize=labelsize)
 plt.ylim(plot_limits[0])
 plt.tight_layout()
-plt.savefig(os.path.join(results_dir, '00traj_test_x.png'), dpi=config.dpi)
+plt.savefig(os.path.join(results_dir, '00traj_test_x.pdf'), dpi=config.dpi)
 plt.clf()
 
 for i in range(end_states.shape[0]):
@@ -290,7 +292,7 @@ plt.xlabel(r"time (s)", fontsize=labelsize)
 plt.ylabel(r"$\theta$", fontsize=labelsize)
 plt.ylim(plot_limits[1])
 plt.tight_layout()
-plt.savefig(os.path.join(results_dir, '00traj_test_theta.png'), dpi=config.dpi)
+plt.savefig(os.path.join(results_dir, '00traj_test_theta.pdf'), dpi=config.dpi)
 plt.clf()
 
 for i in range(end_states.shape[0]):
@@ -302,7 +304,7 @@ plt.xlabel(r"time (s)", fontsize=labelsize)
 plt.ylabel(r"$v$", fontsize=labelsize)
 plt.ylim(plot_limits[2])
 plt.tight_layout()
-plt.savefig(os.path.join(results_dir, '00traj_test_v.png'), dpi=config.dpi)
+plt.savefig(os.path.join(results_dir, '00traj_test_v.pdf'), dpi=config.dpi)
 plt.clf()
 
 for i in range(end_states.shape[0]):
@@ -314,7 +316,7 @@ plt.xlabel(r"time (s)", fontsize=labelsize)
 plt.ylabel(r"$\omega$", fontsize=labelsize)
 plt.ylim(plot_limits[3])
 plt.tight_layout()
-plt.savefig(os.path.join(results_dir, '00traj_test_omega.png'), dpi=config.dpi)
+plt.savefig(os.path.join(results_dir, '00traj_test_omega.pdf'), dpi=config.dpi)
 plt.clf()
 
 for i in range(end_states.shape[0]):
@@ -327,7 +329,7 @@ plt.xlabel(r"time (s)", fontsize=labelsize)
 plt.ylabel(r"norm of states", fontsize=labelsize)
 # plt.ylim(plot_limits[3])
 plt.tight_layout()
-plt.savefig(os.path.join(results_dir, '00traj_test_norm.png'), dpi=config.dpi)
+plt.savefig(os.path.join(results_dir, '00traj_test_norm.pdf'), dpi=config.dpi)
 plt.clf()
 
 for i in range(end_states.shape[0]):
@@ -341,4 +343,4 @@ plt.yticks(fontsize = ticksize)
 plt.xlabel(r"time (s)", fontsize=labelsize)
 plt.ylabel(r"$u$", fontsize=labelsize)
 plt.tight_layout()
-plt.savefig(os.path.join(results_dir, '00traj_test_u.png'), dpi=config.dpi)
+plt.savefig(os.path.join(results_dir, '00traj_test_u.pdf'), dpi=config.dpi)

@@ -33,7 +33,7 @@ from mars.parser_tools import getArgs
 from examples.systems_config import all_systems 
 from examples.example_utils import build_system, LyapunovNetwork, compute_roa_ct, balanced_class_weights, generate_trajectories, save_dict, load_dict
 
-from systems import CartPole
+from systems import CartPole, CartPole_SINDy
 
 try:
     from tqdm import tqdm
@@ -87,7 +87,7 @@ input_args_str = "\
 --controller_train_slope True\
 --verbose True\
 --image_save_format pdf\
---exp_num 700\
+--exp_num 1000\
 --use_cuda False\
 --cutoff_radius 0.4"
 
@@ -144,6 +144,7 @@ b_true = 0 # friction coeff
 
 # Initialize the true system
 system_true = CartPole(m_true, M_true, l_true, b_true, dt, [state_norm, action_norm])
+#system_true = CartPole_SINDy(dt, [state_norm, action_norm])
 
 # Open-loop true dynamics
 dynamics_true = lambda x, y: system_true.ode_normalized(x, y)
@@ -182,7 +183,8 @@ l_nominal = 1 # length
 b_nominal = 0 # friction coeff
 
 # Initialize the nominal system
-system_nominal = CartPole(m_nominal, M_nominal, l_nominal, b_nominal, dt, [state_norm, action_norm])
+#system_nominal = CartPole(m_nominal, M_nominal, l_nominal, b_nominal, dt, [state_norm, action_norm])
+system_nominal = CartPole_SINDy(dt, [state_norm, action_norm])
 
 # Open-loop nominal dynamics
 dynamics_nominal = lambda x, y: system_nominal.ode_normalized(x, y)
@@ -204,6 +206,8 @@ initial_safe_set = np.linalg.norm(grid.all_points, ord=2, axis=1) <= cutoff_radi
 # Control Policies ####################################################################################
 #1. LQR policy
 A, B = system_nominal.linearize_ct()
+print("A matrix:", A)
+print("B matrix:", B)
 Q = np.identity(state_dim).astype(config.np_dtype)  # state cost matrix
 R = np.identity(action_dim).astype(config.np_dtype)  # action cost matrix
 K_lqr, P_lqr = mars.utils.lqr(A, B, Q, R)
