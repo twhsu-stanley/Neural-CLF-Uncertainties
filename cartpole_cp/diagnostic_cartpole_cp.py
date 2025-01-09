@@ -29,7 +29,7 @@ from systems import CartPole, CartPole_SINDy
 import warnings
 warnings.filterwarnings("ignore")
 
-exp_num = 1000
+exp_num = 2000
 
 # results_dir = '{}/results/exp_{:03d}_keep_eg3'.format(str(Path(__file__).parent.parent), exp_num)
 # results_dir = '{}/results/exp_{:03d}'.format(str(Path(__file__).parent.parent), exp_num)

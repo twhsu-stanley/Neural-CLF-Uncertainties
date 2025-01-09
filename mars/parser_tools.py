@@ -61,4 +61,5 @@ def getArgs(argv=None):
     parser.add_argument('--image_save_format', default="png", type=str, help='png or pdf')
     parser.add_argument('--image_save_format_3d', default="png", type=str, help='png or pdf')
     parser.add_argument('--cutoff_radius', default=0.1, type=float, help='learning rate to train the controller')
+    parser.add_argument('--use_cp', default=False, type=str2bool, help='Use conformal prediction or not')
     return parser.parse_args(argv)

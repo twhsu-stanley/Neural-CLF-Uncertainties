@@ -127,7 +127,8 @@ def pretrain_lyapunov_nn_Adam(grid, lyapunov_nn, target_lyapunov, batchsize, n_i
 def train_largest_ROA_Adam(target_set, lyapunov_nn, policy, closed_loop_dynamics, batchsize,
                       niters, lyapunov_learning_rate, policy_learning_rate,
                       alpha, decrease_offset, beta, decrease_loss_coeff, Lipschitz_loss_coeff, size_loss_coeff,
-                      fullpath_to_save_objectives=None, verbose=False, optimizer=None, lr_scheduler=None):
+                      fullpath_to_save_objectives=None, verbose=False, optimizer=None, lr_scheduler=None,
+                      use_cp = False, cp_quantile = None):
     if optimizer == None:
         optimizer = optim.Adam([
                 {'params': lyapunov_nn.grad_lyapunov_function.parameters(), 'lr': lyapunov_learning_rate},
@@ -136,35 +137,58 @@ def train_largest_ROA_Adam(target_set, lyapunov_nn, policy, closed_loop_dynamics
     trainloader = torch.utils.data.DataLoader(target_set, batch_size=batchsize, shuffle=True)
     n_minibatch = len(trainloader)
     dot_vnn = lambda x: torch.sum(torch.mul(lyapunov_nn.grad_lyapunov_function(x), closed_loop_dynamics(x)),1)
-    all_objectives_record = {"decrease":np.zeros(niters), "Lipschitz":np.zeros(niters), "size":np.zeros(niters)}
+    all_objectives_record = {"decrease":np.zeros(niters), "Lipschitz":np.zeros(niters), "decrease_cp":np.zeros(niters), "size":np.zeros(niters)}
     offset = decrease_offset
     for k in tqdm(range(niters)):
         decrease_epoch_loss = 0
         lipschitze_epoch_loss = 0
+        decrease_cp_epoch_loss = 0
         for ind_in, target_states_batch in enumerate(trainloader):
             # Training step
             optimizer.zero_grad()
-            
-            decrease_loss = torch.max(dot_vnn(target_states_batch)\
-                + alpha*torch.pow(torch.norm(torch.tensor(target_states_batch, dtype=config.ptdtype,\
-                device=config.device), p=2, dim = 1),2) + offset, torch.tensor(0, dtype=config.ptdtype,\
-                    device=config.device)).reshape(-1, 1)
+
+            decrease_loss = torch.max( \
+                dot_vnn(target_states_batch) + \
+                alpha * torch.pow(torch.norm(torch.tensor(target_states_batch, dtype=config.ptdtype, device=config.device), p=2, dim=1), 2) + \
+                offset \
+            , torch.tensor(0, dtype=config.ptdtype, device=config.device) \
+            ).reshape(-1, 1)
             
             Lipschitz_loss = torch.norm(lyapunov_nn.grad_lyapunov_function(target_states_batch), p=2, dim=1)
             
-            # size_loss = torch.add(-beta * torch.pow(torch.norm(torch.tensor(target_states_batch, dtype=config.ptdtype,\
-            #      device=config.device), p=2, dim = 1),2), lyapunov_nn.lyapunov_function(target_states_batch))
+            # TODO: Add cp loss (optional)
+            if use_cp:
+                cp_bound = cp_quantile * torch.norm(lyapunov_nn.grad_lyapunov_function(target_states_batch), p=2, dim=1) #p=float('inf')
+                #cp_bound = torch.mul(cp_bound, torch.norm(torch.tensor(target_states_batch, dtype=config.ptdtype, device=config.device), p=2, dim=1) > 1.0)
+                #cp_term = torch.max(cp_bound - alpha * torch.pow(torch.norm(torch.tensor(target_states_batch, dtype=config.ptdtype, device=config.device), p=2, dim=1), 2), \
+                #                    torch.tensor(0, dtype=config.ptdtype, device=config.device))
+
+                decrease_loss_cp = torch.max( \
+                    dot_vnn(target_states_batch) + \
+                    alpha * torch.pow(torch.norm(torch.tensor(target_states_batch, dtype=config.ptdtype, device=config.device), p=2, dim=1), 2) + \
+                    cp_bound + \
+                    offset \
+                , torch.tensor(0, dtype=config.ptdtype, device=config.device) \
+                ).reshape(-1, 1)
+
+                objective_decrease_condition_cp = torch.mean(decrease_loss_coeff/10 * decrease_loss_cp)
+            
+            else:
+                objective_decrease_condition_cp = 0.0
+            #################################################################################################
 
             objective_decrease_condition = torch.mean(decrease_loss_coeff * decrease_loss)
             objective_Lipschitz = torch.mean(Lipschitz_loss_coeff * Lipschitz_loss)
-            objective = objective_decrease_condition + objective_Lipschitz
+            objective = objective_decrease_condition + objective_Lipschitz + objective_decrease_condition_cp
+
             objective.backward()
             optimizer.step()
             decrease_epoch_loss = decrease_epoch_loss + objective_decrease_condition.item()
             lipschitze_epoch_loss = lipschitze_epoch_loss + objective_Lipschitz.item()
+            decrease_cp_epoch_loss = decrease_cp_epoch_loss + objective_decrease_condition_cp.item()
 
-        all_objectives_record["decrease"][k], all_objectives_record["Lipschitz"][k], \
-                = decrease_epoch_loss/n_minibatch, lipschitze_epoch_loss/n_minibatch
+        all_objectives_record["decrease"][k], all_objectives_record["Lipschitz"][k], all_objectives_record["decrease_cp"][k]\
+                = decrease_epoch_loss/n_minibatch, lipschitze_epoch_loss/n_minibatch, decrease_cp_epoch_loss/n_minibatch
 
     if lr_scheduler != None:
         lr_scheduler.step()
@@ -174,9 +198,9 @@ def train_largest_ROA_Adam(target_set, lyapunov_nn, policy, closed_loop_dynamics
         plt.rc('font', family='serif')
         fig, ax = plt.subplots(figsize=(10, 10), dpi=config.dpi, frameon=False)
         y_axis_values = np.concatenate([all_objectives_record["decrease"].reshape(niters, 1),\
-             all_objectives_record["Lipschitz"].reshape(niters, 1)], 1)
+             all_objectives_record["Lipschitz"].reshape(niters, 1), all_objectives_record["decrease_cp"].reshape(niters, 1)], 1)
         ax.plot(np.arange(0, niters).reshape(niters, 1), y_axis_values, linewidth=1)
-        ax.legend(["Decrease", "Lipschitz"])
+        ax.legend(["Decrease", "Lipschitz", "Decrease CP"])
         ax.set_xlabel("iters", fontsize=20)
         ax.set_ylabel("objective value", fontsize=20)
         ax.tick_params(axis='both', which='major', labelsize=10, grid_linewidth=10)

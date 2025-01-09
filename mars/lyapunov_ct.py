@@ -352,7 +352,7 @@ class Lyapunov_CT(object):
         setattr(self, 'c_max_' + true_or_nominal, c_max_tmp)
         
         
-    def update_exp_stable_set(self, alpha, true_or_nominal, roa_true):
+    def update_exp_stable_set(self, alpha, true_or_nominal, roa_true, use_cp = False, cp_quantile = 0.0):
         if true_or_nominal != "true" and true_or_nominal != "nominal":
             raise ValueError("Have to choose between true or nominal!")
         closed_loop_dynamics = getattr(self, 'closed_loop_dynamics_' + true_or_nominal)
@@ -384,9 +384,16 @@ class Lyapunov_CT(object):
                 if self.decrease_thresh is not None \
                 else self.threshold(torch.tensor(states, dtype=config.ptdtype), self.tau)
             dot_vnn = lambda x: torch.sum(torch.mul(self.grad_lyapunov_function(x), closed_loop_dynamics(x)), dim=1)
-            decrease = torch.add(dot_vnn(states), \
-                alpha*torch.pow(torch.norm(torch.tensor(states, dtype=config.ptdtype,\
-                device=config.device), p=2, dim = 1),2)).reshape(-1, 1)
+            decrease = torch.add( \
+                            dot_vnn(states), \
+                            alpha * torch.pow(torch.norm(torch.tensor(states, dtype=config.ptdtype, device=config.device), p=2, dim=1), 2) \
+                        ).reshape(-1, 1)
+            # TODO: add cp term (optional)
+            #if use_cp:
+            #    cp_term = cp_quantile * torch.norm(self.grad_lyapunov_function(states), p=float('inf'), dim=1)
+            #    cp_term = torch.mul(cp_term, torch.norm(torch.tensor(states), p=2, dim=1) > 1.0).reshape(-1, 1)
+            #    decrease = decrease + cp_term
+
             exp_stable = torch.squeeze(torch.lt(decrease, thresh)).detach().cpu().numpy()
             safe_batch |= exp_stable
             safe_batch &= roa_true_batch
@@ -449,4 +456,3 @@ class Lyapunov_CT(object):
         setattr(self, 'largest_exp_stable_set_' + true_or_nominal, largest_exp_stable_set.detach().cpu().numpy().ravel())
         setattr(self, 'c_max_exp_' + true_or_nominal, c_max_exp_tmp)
         
-

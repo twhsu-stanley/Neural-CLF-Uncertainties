@@ -53,8 +53,8 @@ input_args_str = "\
 --lyapunov_decrease_threshold 0.0\
 --roa_gridsize 100\
 --roa_pre_lr 1e-3\
---roa_pre_iters 30\
---roa_pre_batchsize 64\
+--roa_pre_iters 10000\
+--roa_pre_batchsize 32\
 --roa_inner_iters 10\
 --roa_outer_iters 300\
 --roa_train_lr 5e-6\
@@ -68,17 +68,17 @@ input_args_str = "\
 --roa_level_multiplier 10\
 --roa_decrease_loss_coeff 500.0\
 --roa_decrease_alpha 0.1\
---roa_decrease_offset 0.01\
---roa_lipschitz_loss_coeff 0.01\
+--roa_decrease_offset 0.0\
+--roa_lipschitz_loss_coeff 0.1\
 --roa_c_target 0.04\
 --roa_classification_loss_coeff 2\
---controller_nn_sizes [16,16,16,1]\
+--controller_nn_sizes [32,32,32,1]\
 --controller_nn_activations ['tanh','tanh','tanh','identity']\
 --controller_slope_multiplier 50\
 --controller_pre_lr 1e-2\
---controller_pre_iters 500\
---controller_pre_batchsize 64\
---controller_inner_iters 10\
+--controller_pre_iters 40000\
+--controller_pre_batchsize 32\
+--controller_inner_iters 100\
 --controller_outer_iters 2\
 --controller_level_multiplier 2\
 --controller_traj_length 10\
@@ -87,9 +87,10 @@ input_args_str = "\
 --controller_train_slope True\
 --verbose True\
 --image_save_format pdf\
---exp_num 1000\
+--exp_num 2000\
 --use_cuda False\
---cutoff_radius 0.4"
+--cutoff_radius 0.4\
+--use_cp True"
 
 input_args_temp = input_args_str.split("--")
 input_args = []
@@ -235,6 +236,8 @@ horizon = 2500 # smaller tol requires longer horizon to give an accurate estimat
 tol = 0.01 # how much close to origin must be x(T) to be considered as stable trajectory
 roa_true = compute_roa_ct(grid, closed_loop_dynamics_true, dt, horizon, tol, no_traj=True)
 print("Size of ROA init:", np.sum(roa_true))
+print("Stable states: {}".format(roa_true.sum()))
+print("Size of initial_safe_set: ", initial_safe_set.sum())
 #######################################################################################################
 
 # Initialize the Lyapunov functions ###################################################################
@@ -254,8 +257,6 @@ lyapunov_lqr.update_exp_stable_set(args.roa_decrease_alpha, 'true', roa_true)
 lyapunov_lqr.update_safe_set('nominal', roa_true)
 lyapunov_lqr.update_exp_stable_set(args.roa_decrease_alpha, 'nominal', roa_true)
 
-print("Stable states: {}".format(roa_true.sum()))
-print("Size of initial_safe_set: ", initial_safe_set.sum())
 print("Largest ROA contained (LQR): {}".format(lyapunov_lqr.largest_safe_set_true.sum()))
 print("Largest exp stable contained (LQR): {}".format(lyapunov_lqr.largest_exp_stable_set_true.sum()))
 print("ROA size (LQR): {}".format(lyapunov_lqr.safe_set_true.sum()))
@@ -272,11 +273,9 @@ lyapunov_nn.update_values()
 lyapunov_nn.update_safe_set('true', roa_true)
 lyapunov_nn.update_exp_stable_set(args.roa_decrease_alpha,'true', roa_true)
 lyapunov_nn.update_safe_set('nominal', roa_true)
-lyapunov_nn.update_exp_stable_set(args.roa_decrease_alpha, 'nominal', roa_true)
+lyapunov_nn.update_exp_stable_set(args.roa_decrease_alpha, 'nominal', roa_true, use_cp = args.use_cp, cp_quantile = system_nominal.cp_quantile)
 save_lyapunov_nn(lyapunov_nn, full_path=os.path.join(results_dir, 'untrained_lyapunov_nn.net'))
 
-print("Stable states: {}".format(roa_true.sum()))
-print("Size of initial_safe_set: ", initial_safe_set.sum())
 print("Largest ROA contained (NN init): {}".format(lyapunov_nn.largest_safe_set_true.sum()))
 print("Largest exp stable contained (NN init): {}".format(lyapunov_nn.largest_exp_stable_set_true.sum()))
 print("ROA size (NN init): {}".format(lyapunov_nn.safe_set_true.sum()))
@@ -292,7 +291,7 @@ lyapunov_pre.update_values()
 lyapunov_pre.update_safe_set('true', roa_true)
 lyapunov_pre.update_exp_stable_set(args.roa_decrease_alpha, 'true', roa_true)
 lyapunov_pre.update_safe_set('nominal', roa_true)
-lyapunov_pre.update_exp_stable_set(args.roa_decrease_alpha, 'nominal', roa_true)
+lyapunov_pre.update_exp_stable_set(args.roa_decrease_alpha, 'nominal', roa_true, use_cp = args.use_cp, cp_quantile = system_nominal.cp_quantile)
 
 print("Stable states: {}".format(roa_true.sum()))
 print("Size of initial_safe_set: ", initial_safe_set.sum())
@@ -302,7 +301,9 @@ print("ROA size (pre target): {}".format(lyapunov_pre.safe_set_true.sum()))
 print("Exp stable size (pre target): {}".format(lyapunov_pre.exp_stable_set_true.sum()))
 
 print("Pretrain the Lyapunov network:")
-pretrain_lyapunov_nn_Adam(grid, lyapunov_nn, lyapunov_pre, args.roa_pre_batchsize, args.roa_pre_iters, args.roa_pre_lr,\
+#pretrain_lyapunov_nn_Adam(grid, lyapunov_nn, lyapunov_pre, args.roa_pre_batchsize, args.roa_pre_iters, args.roa_pre_lr,\
+#    verbose=False, full_path = os.path.join(results_dir, 'roa_training_loss_pretrain.{}'.format(args.image_save_format)))
+pretrain_lyapunov_nn(grid, lyapunov_nn, lyapunov_pre, args.roa_pre_batchsize, args.roa_pre_iters, args.roa_pre_lr,\
     verbose=False, full_path = os.path.join(results_dir, 'roa_training_loss_pretrain.{}'.format(args.image_save_format)))
 save_lyapunov_nn(lyapunov_nn, full_path=os.path.join(results_dir, 'pretrained_lyapunov_nn.net'))
 
@@ -310,7 +311,7 @@ lyapunov_nn.update_values()
 lyapunov_nn.update_safe_set('true', roa_true)
 lyapunov_nn.update_exp_stable_set(args.roa_decrease_alpha, 'true', roa_true)
 lyapunov_nn.update_safe_set('nominal', roa_true)
-lyapunov_nn.update_exp_stable_set(args.roa_decrease_alpha, 'nominal', roa_true)
+lyapunov_nn.update_exp_stable_set(args.roa_decrease_alpha, 'nominal', roa_true, use_cp = args.use_cp, cp_quantile = system_nominal.cp_quantile)
 
 print("Stable states: {}".format(roa_true.sum()))
 print("Size of initial_safe_set: ", initial_safe_set.sum())
@@ -318,47 +319,6 @@ print("Largest ROA contained (NN pretrained): {}".format(lyapunov_nn.largest_saf
 print("Largest exp stable contained (NN pretrained): {}".format(lyapunov_nn.largest_exp_stable_set_true.sum()))
 print("ROA size (NN pretrained): {}".format(lyapunov_nn.safe_set_true.sum()))
 print("Exp stable size (NN pretrained): {}".format(lyapunov_nn.exp_stable_set_true.sum()))
-
-# Dynamics error NNs
-"""
-layer_dims = eval(args.control_vector_nn_sizes)
-layer_activations = eval(args.control_vector_nn_activations)
-control_vec_nn = mars.DynamicsNet(state_dim, layer_dims, layer_activations, initializer=torch.nn.init.xavier_uniform).to(device)
-layer_dims = eval(args.drift_vector_nn_sizes)
-layer_activations = eval(args.drift_vector_nn_activations)
-drift_vec_nn = mars.DynamicsNet(state_dim, layer_dims, layer_activations, initializer=torch.nn.init.xavier_uniform).to(device)
-closed_loop_dynamics_nominal = lambda states: closed_loop_dynamics_nominal_0(states) \
-    + torch.cat((torch.zeros([len(states),2], dtype = config.ptdtype, device=device), drift_vec_nn(states)), dim=1)\
-    + torch.cat((torch.zeros([len(states),2], dtype = config.ptdtype, device=device), \
-        torch.mul(control_vec_nn(states), policy(torch.tensor(states, device=device)))), dim=1)
-
-sampling_time = 0.001
-dot_vnn = lambda x: torch.sum(torch.mul(lyapunov_nn.grad_lyapunov_function(x), closed_loop_dynamics_true(x)),1)
-dot_vnn_nd = dot_vnn # TODO: temporary code for testing
-#dot_vnn_nd = lambda x: torch.squeeze((lyapunov_nn.lyapunov_function(torch.tensor(x, dtype = config.ptdtype, device=device)\
-#    + closed_loop_dynamics_true(x)*sampling_time) - lyapunov_nn.lyapunov_function(x))/sampling_time)
-nominal_dot_vnn = lambda x: torch.sum(torch.mul(lyapunov_nn.grad_lyapunov_function(x), closed_loop_dynamics_nominal(x)),1)
-
-print("Pretrain the dynamics error network:")
-target_idx = lyapunov_nn.values.detach().cpu().numpy().ravel() <= lyapunov_nn.c_max_exp_true*(args.roa_level_multiplier +1)
-target_set = grid.all_points[target_idx]
-train_dynamics_sample_in_batch_Adam(target_set, dot_vnn_nd, nominal_dot_vnn, drift_vec_nn, control_vec_nn,\
-        args.dynamics_loss_coeff, args.dynamics_batchsize, args.dynamics_pre_iters, args.dynamics_pre_lr, \
-        full_path=os.path.join(results_dir, 'dynamics_training_loss_pretrain.{}'.format(args.image_save_format)))
-save_dynamics_nn(drift_vec_nn, full_path=os.path.join(results_dir, 'pretrained_drift_vec_nn.net'))
-save_dynamics_nn(control_vec_nn, full_path=os.path.join(results_dir, 'pretrained_control_vec_nn.net'))
-
-#closed_loop_dynamics_nominal = lambda states: closed_loop_dynamics_nominal_0(states)
-# TODO: merge this with the parts above; no need to set closed_loop_dynamics_nominal = None at first
-lyapunov_nn.closed_loop_dynamics_nominal = closed_loop_dynamics_nominal
-lyapunov_lqr.closed_loop_dynamics_nominal = closed_loop_dynamics_nominal
-lyapunov_nn.update_values()
-lyapunov_nn.update_safe_set('nominal', roa_true)
-lyapunov_nn.update_exp_stable_set(args.roa_decrease_alpha, 'nominal', roa_true)
-lyapunov_lqr.update_values()
-lyapunov_lqr.update_safe_set('nominal', roa_true)
-lyapunov_lqr.update_exp_stable_set(args.roa_decrease_alpha, 'nominal', roa_true)
-"""
 
 # Monitor the training process
 training_info = {"grid_size":{}, "roa_info_nn":{}, "roa_info_lqr":{}, "policy_info":{}}
@@ -382,14 +342,6 @@ training_info["roa_info_lqr"] = {"true_roa_sizes": [],\
     "true_c_max_exp_values": [], "nominal_c_max_exp_values": [],\
     "true_c_max_exp_unconstrained_values": [], "nominal_c_max_exp_unconstrained_values": []}
 training_info["policy_info"] = {"low_thresh_param" : [], "high_thresh_param" : [], "low_slope_param" : [], "high_slope_param" : []}
-
-# Approximate ROA
-print("Policy:", policy.mul_low_slope_param, policy.mul_high_slope_param)
-print("Stable states: {}".format(roa_true.sum()))
-print("Largest ROA contained: {}".format(lyapunov_nn.largest_safe_set_true.sum()))
-print("Largest exp stable contained: {}".format(lyapunov_nn.largest_exp_stable_set_true.sum()))
-print("ROA size: {}".format(lyapunov_nn.safe_set_true.sum()))
-print("Exp stable size: {}".format(lyapunov_nn.exp_stable_set_true.sum()))
 
 training_info["policy_info"]["low_thresh_param"].append(copy.deepcopy(policy.low_thresh_param.detach().cpu().numpy()))
 training_info["policy_info"]["high_thresh_param"].append(copy.deepcopy(policy.high_thresh_param.detach().cpu().numpy()))
@@ -432,7 +384,7 @@ training_info["roa_info_lqr"]["nominal_largest_exp_stable_set_sizes"].append(cop
 training_info["roa_info_lqr"]["nominal_c_max_exp_values"].append(copy.deepcopy(lyapunov_lqr.c_max_exp_nominal))
 training_info["roa_info_lqr"]["nominal_c_max_exp_unconstrained_values"].append(copy.deepcopy(lyapunov_lqr.c_max_exp_unconstrained_nominal))
 
-
+# Main learning algorithm begins here
 c = lyapunov_nn.c_max_exp_nominal
 
 idx_small = lyapunov_nn.values.detach().cpu().numpy().ravel() <= c
@@ -442,7 +394,6 @@ else:
     level_multiplier = args.roa_level_multiplier
 idx_big = lyapunov_nn.values.detach().cpu().numpy().ravel() <= c * level_multiplier
 idx_exp_stable_true = lyapunov_nn.exp_stable_set_true
-
 
 gamma = 0.5
 lr_multiplier = lambda k : gamma**(k//args.roa_lr_scheduler_step)
@@ -463,20 +414,14 @@ for k in range(args.roa_outer_iters):
         print("No stable points in the training set! Abort training!")
         break
     target_set = grid.all_points[target_idx]
-    """
-    train_dynamics_sample_in_batch_Adam(target_set, dot_vnn_nd, nominal_dot_vnn, drift_vec_nn, control_vec_nn,\
-        args.dynamics_loss_coeff, args.dynamics_batchsize, args.dynamics_train_iters, args.dynamics_train_lr, \
-        full_path=os.path.join(results_dir, 'dynamics_training_loss_iter_{}.{}'.format(k+1, args.image_save_format)),
-        print_grad=False)
-    save_dynamics_nn(drift_vec_nn, full_path=os.path.join(results_dir, 'trained_drift_vec_nn_iter_{}.net'.format(k+1)))
-    save_dynamics_nn(control_vec_nn, full_path=os.path.join(results_dir, 'trained_control_vec_nn_iter_{}.net'.format(k+1)))
-    """
+
     train_largest_ROA_Adam(target_set, lyapunov_nn, policy, closed_loop_dynamics_nominal, args.roa_batchsize,
         args.roa_inner_iters, roa_lr, controller_lr,
         args.roa_decrease_alpha, args.roa_decrease_offset, args.roa_size_beta,
         args.roa_decrease_loss_coeff, args.roa_lipschitz_loss_coeff, args.roa_size_loss_coeff,
         fullpath_to_save_objectives=os.path.join(results_dir, 'roa_training_loss_iter_{}.{}'.format(k+1, args.image_save_format)),
-        verbose=False, optimizer = None, lr_scheduler=None)
+        verbose = False, optimizer = None, lr_scheduler = None,
+        use_cp = args.use_cp, cp_quantile = system_nominal.cp_quantile)
     save_lyapunov_nn(lyapunov_nn, full_path=os.path.join(results_dir, 'trained_lyapunov_nn_iter_{}.net'.format(k+1)))
     save_controller_nn(policy, full_path=os.path.join(results_dir, 'trained_controller_nn_iter_{}.net'.format(k+1)))
     print("Policy:", policy.mul_low_slope_param, policy.mul_high_slope_param)
@@ -488,7 +433,7 @@ for k in range(args.roa_outer_iters):
     lyapunov_nn.update_safe_set('true', roa_true)
     lyapunov_nn.update_exp_stable_set(args.roa_decrease_alpha, 'true', roa_true)
     lyapunov_nn.update_safe_set('nominal', roa_true)
-    lyapunov_nn.update_exp_stable_set(args.roa_decrease_alpha, 'nominal', roa_true)
+    lyapunov_nn.update_exp_stable_set(args.roa_decrease_alpha, 'nominal', roa_true, use_cp = args.use_cp, cp_quantile = system_nominal.cp_quantile)
 
     lyapunov_lqr.update_values()
     lyapunov_lqr.update_safe_set('true', roa_true)
@@ -559,4 +504,3 @@ for k in range(args.roa_outer_iters):
 t_stop = perf_counter()
 print("Elapsed time during training and plotting in seconds:", t_stop-t_start)
 save_dict(training_info, os.path.join(results_dir, "training_info.npy"))
-
