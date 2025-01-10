@@ -56,12 +56,12 @@ input_args_str = "\
 --roa_pre_iters 10000\
 --roa_pre_batchsize 32\
 --roa_inner_iters 10\
---roa_outer_iters 300\
+--roa_outer_iters 100\
 --roa_train_lr 5e-6\
 --roa_lr_scheduler_step 40\
 --roa_nn_structure sum_of_two_eth\
---roa_nn_sizes [64,64,64]\
---roa_nn_activations ['tanh','tanh','tanh']\
+--roa_nn_sizes [64,64,64,64]\
+--roa_nn_activations ['tanh','tanh','tanh','tanh']\
 --roa_batchsize 64\
 --roa_adaptive_level_multiplier False\
 --roa_adaptive_level_multiplier_step 50\
@@ -69,7 +69,7 @@ input_args_str = "\
 --roa_decrease_loss_coeff 500.0\
 --roa_decrease_alpha 0.1\
 --roa_decrease_offset 0.0\
---roa_lipschitz_loss_coeff 0.1\
+--roa_lipschitz_loss_coeff 0.001\
 --roa_c_target 0.04\
 --roa_classification_loss_coeff 2\
 --controller_nn_sizes [32,32,32,1]\
@@ -87,7 +87,7 @@ input_args_str = "\
 --controller_train_slope True\
 --verbose True\
 --image_save_format pdf\
---exp_num 2000\
+--exp_num 2200\
 --use_cuda False\
 --cutoff_radius 0.4\
 --use_cp True"

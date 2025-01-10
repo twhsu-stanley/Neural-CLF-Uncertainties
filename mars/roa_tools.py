@@ -158,6 +158,8 @@ def train_largest_ROA_Adam(target_set, lyapunov_nn, policy, closed_loop_dynamics
             
             # TODO: Add cp loss (optional)
             if use_cp:
+                # Testing: Lipchitz const of gradv
+                #LV = torch.max(torch.norm(lyapunov_nn.grad_lyapunov_function(target_set), p=2, dim=1))
                 cp_bound = cp_quantile * torch.norm(lyapunov_nn.grad_lyapunov_function(target_states_batch), p=2, dim=1) #p=float('inf')
                 #cp_bound = torch.mul(cp_bound, torch.norm(torch.tensor(target_states_batch, dtype=config.ptdtype, device=config.device), p=2, dim=1) > 1.0)
                 #cp_term = torch.max(cp_bound - alpha * torch.pow(torch.norm(torch.tensor(target_states_batch, dtype=config.ptdtype, device=config.device), p=2, dim=1), 2), \
@@ -171,7 +173,7 @@ def train_largest_ROA_Adam(target_set, lyapunov_nn, policy, closed_loop_dynamics
                 , torch.tensor(0, dtype=config.ptdtype, device=config.device) \
                 ).reshape(-1, 1)
 
-                objective_decrease_condition_cp = torch.mean(decrease_loss_coeff/10 * decrease_loss_cp)
+                objective_decrease_condition_cp = torch.mean(decrease_loss_coeff/5 * decrease_loss_cp)
             
             else:
                 objective_decrease_condition_cp = 0.0
