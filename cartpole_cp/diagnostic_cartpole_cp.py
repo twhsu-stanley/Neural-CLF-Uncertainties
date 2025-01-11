@@ -29,7 +29,7 @@ from systems import CartPole, CartPole_SINDy
 import warnings
 warnings.filterwarnings("ignore")
 
-exp_num = 2000
+exp_num = 2200
 
 # results_dir = '{}/results/exp_{:03d}_keep_eg3'.format(str(Path(__file__).parent.parent), exp_num)
 # results_dir = '{}/results/exp_{:03d}'.format(str(Path(__file__).parent.parent), exp_num)
@@ -216,9 +216,35 @@ lyapunov_nn.update_values()
 
 training_info = load_dict(os.path.join(results_dir, "training_info.npy"))
 c = training_info["roa_info_nn"]["nominal_c_max_values"][-1]
-print(c)
-c1 = lyapunov_nn.c_max_exp_true
-print(c1)
+print("nominal_c_max_values:", c)
+print("true_c_max_exp_values:", training_info["roa_info_nn"]["true_c_max_exp_values"][-1])
+
+print("nominal_exp_stable_set_sizes", training_info["roa_info_nn"]["nominal_exp_stable_set_sizes"][-1])
+print("nominal_largest_exp_stable_set_sizes", training_info["roa_info_nn"]["nominal_largest_exp_stable_set_sizes"][-1])
+print("true_exp_stable_set_sizes", training_info["roa_info_nn"]["true_exp_stable_set_sizes"][-1])
+print("true_largest_exp_stable_set_sizes", training_info["roa_info_nn"]["true_largest_exp_stable_set_sizes"][-1])
+
+fig = plt.figure(figsize=(10, 7), dpi=config.dpi, frameon=False)
+plt.rc('text', usetex=True)
+plt.rc('font', family='serif')
+plt.plot(range(args.roa_outer_iters), training_info["roa_info_nn"]["true_exp_stable_set_sizes"][1:], linewidth = 1, label = "Size of true_exp_stable_set")
+plt.plot(range(args.roa_outer_iters), training_info["roa_info_nn"]["nominal_exp_stable_set_sizes"][1:], linewidth = 1, label = "Size of nominal_exp_stable_set")
+plt.legend(loc="center left")
+plt.xlabel("Iteration")
+plt.tight_layout()
+plt.savefig(os.path.join(results_dir, '00sizes_of_stable_sets.pdf'), dpi=config.dpi)
+plt.clf()
+
+fig = plt.figure(figsize=(10, 7), dpi=config.dpi, frameon=False)
+plt.rc('text', usetex=True)
+plt.rc('font', family='serif')
+plt.plot(range(args.roa_outer_iters), training_info["roa_info_nn"]["true_largest_exp_stable_set_sizes"][1:], linewidth = 1, label = "Size of true_largest_exp_stable_set")
+plt.plot(range(args.roa_outer_iters), training_info["roa_info_nn"]["nominal_largest_exp_stable_set_sizes"][1:], linewidth = 1, label = "Size of nominal_largest_exp_stable_set")
+plt.legend(loc="center left")
+plt.xlabel("Iteration")
+plt.tight_layout()
+plt.savefig(os.path.join(results_dir, '00sizes_of_largest_stable_sets.pdf'), dpi=config.dpi)
+plt.clf()
 
 print("Determining the limit points")
 ind_higher = lyapunov_nn.values.detach().cpu().numpy().ravel() <= c

@@ -388,11 +388,6 @@ class Lyapunov_CT(object):
                             dot_vnn(states), \
                             alpha * torch.pow(torch.norm(torch.tensor(states, dtype=config.ptdtype, device=config.device), p=2, dim=1), 2) \
                         ).reshape(-1, 1)
-            # TODO: add cp term (optional)
-            #if use_cp:
-            #    cp_term = cp_quantile * torch.norm(self.grad_lyapunov_function(states), p=float('inf'), dim=1)
-            #    cp_term = torch.mul(cp_term, torch.norm(torch.tensor(states), p=2, dim=1) > 1.0).reshape(-1, 1)
-            #    decrease = decrease + cp_term
 
             exp_stable = torch.squeeze(torch.lt(decrease, thresh)).detach().cpu().numpy()
             safe_batch |= exp_stable

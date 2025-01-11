@@ -87,10 +87,10 @@ input_args_str = "\
 --controller_train_slope True\
 --verbose True\
 --image_save_format pdf\
---exp_num 2200\
+--exp_num 2300\
 --use_cuda False\
 --cutoff_radius 0.4\
---use_cp True"
+--use_cp False"
 
 input_args_temp = input_args_str.split("--")
 input_args = []
@@ -257,10 +257,10 @@ lyapunov_lqr.update_exp_stable_set(args.roa_decrease_alpha, 'true', roa_true)
 lyapunov_lqr.update_safe_set('nominal', roa_true)
 lyapunov_lqr.update_exp_stable_set(args.roa_decrease_alpha, 'nominal', roa_true)
 
-print("Largest ROA contained (LQR): {}".format(lyapunov_lqr.largest_safe_set_true.sum()))
-print("Largest exp stable contained (LQR): {}".format(lyapunov_lqr.largest_exp_stable_set_true.sum()))
-print("ROA size (LQR): {}".format(lyapunov_lqr.safe_set_true.sum()))
-print("Exp stable size (LQR): {}".format(lyapunov_lqr.exp_stable_set_true.sum()))
+print("Size of largest_safe_set_true (LQR): {}".format(lyapunov_lqr.largest_safe_set_true.sum()))
+print("Size of largest_exp_stable_set_true (LQR): {}".format(lyapunov_lqr.largest_exp_stable_set_true.sum()))
+print("Size of safe_set_true (LQR): {}".format(lyapunov_lqr.safe_set_true.sum()))
+print("Size of exp_stable_set_true (LQR): {}".format(lyapunov_lqr.exp_stable_set_true.sum()))
 
 #2.1 Initialize the NN Lyapunov Function
 layer_dims = eval(args.roa_nn_sizes)
@@ -276,10 +276,10 @@ lyapunov_nn.update_safe_set('nominal', roa_true)
 lyapunov_nn.update_exp_stable_set(args.roa_decrease_alpha, 'nominal', roa_true, use_cp = args.use_cp, cp_quantile = system_nominal.cp_quantile)
 save_lyapunov_nn(lyapunov_nn, full_path=os.path.join(results_dir, 'untrained_lyapunov_nn.net'))
 
-print("Largest ROA contained (NN init): {}".format(lyapunov_nn.largest_safe_set_true.sum()))
-print("Largest exp stable contained (NN init): {}".format(lyapunov_nn.largest_exp_stable_set_true.sum()))
-print("ROA size (NN init): {}".format(lyapunov_nn.safe_set_true.sum()))
-print("Exp stable size (NN init): {}".format(lyapunov_nn.exp_stable_set_true.sum()))
+print("Size of largest_safe_set_true (NN init): {}".format(lyapunov_nn.largest_safe_set_true.sum()))
+print("Size of largest_exp_stable_set_true (NN init): {}".format(lyapunov_nn.largest_exp_stable_set_true.sum()))
+print("Size of safe_set_true (NN init): {}".format(lyapunov_nn.safe_set_true.sum()))
+print("Size of exp_stable_set_true (NN init): {}".format(lyapunov_nn.exp_stable_set_true.sum()))
 
 #2.2 Pretrain the NN Lyapunov Function
 # Initialize quadratic Lyapunov
@@ -295,10 +295,10 @@ lyapunov_pre.update_exp_stable_set(args.roa_decrease_alpha, 'nominal', roa_true,
 
 print("Stable states: {}".format(roa_true.sum()))
 print("Size of initial_safe_set: ", initial_safe_set.sum())
-print("Largest ROA contained (pre target): {}".format(lyapunov_pre.largest_safe_set_true.sum()))
-print("Largest exp stable contained (pre target): {}".format(lyapunov_pre.largest_exp_stable_set_true.sum()))
-print("ROA size (pre target): {}".format(lyapunov_pre.safe_set_true.sum()))
-print("Exp stable size (pre target): {}".format(lyapunov_pre.exp_stable_set_true.sum()))
+print("Size of largest_safe_set_true (pre target): {}".format(lyapunov_pre.largest_safe_set_true.sum()))
+print("Size of largest_exp_stable_set_true (pre target): {}".format(lyapunov_pre.largest_exp_stable_set_true.sum()))
+print("Size of safe_set_true (pre target): {}".format(lyapunov_pre.safe_set_true.sum()))
+print("Size of exp_stable_set_true (pre target): {}".format(lyapunov_pre.exp_stable_set_true.sum()))
 
 print("Pretrain the Lyapunov network:")
 #pretrain_lyapunov_nn_Adam(grid, lyapunov_nn, lyapunov_pre, args.roa_pre_batchsize, args.roa_pre_iters, args.roa_pre_lr,\
@@ -315,10 +315,10 @@ lyapunov_nn.update_exp_stable_set(args.roa_decrease_alpha, 'nominal', roa_true, 
 
 print("Stable states: {}".format(roa_true.sum()))
 print("Size of initial_safe_set: ", initial_safe_set.sum())
-print("Largest ROA contained (NN pretrained): {}".format(lyapunov_nn.largest_safe_set_true.sum()))
-print("Largest exp stable contained (NN pretrained): {}".format(lyapunov_nn.largest_exp_stable_set_true.sum()))
-print("ROA size (NN pretrained): {}".format(lyapunov_nn.safe_set_true.sum()))
-print("Exp stable size (NN pretrained): {}".format(lyapunov_nn.exp_stable_set_true.sum()))
+print("Size of largest_safe_set_true (NN pretrained): {}".format(lyapunov_nn.largest_safe_set_true.sum()))
+print("Size of largest_exp_stable_set_true (NN pretrained): {}".format(lyapunov_nn.largest_exp_stable_set_true.sum()))
+print("Size of safe_set_true (NN pretrained): {}".format(lyapunov_nn.safe_set_true.sum()))
+print("Size of exp_stable_set_true (NN pretrained): {}".format(lyapunov_nn.exp_stable_set_true.sum()))
 
 # Monitor the training process
 training_info = {"grid_size":{}, "roa_info_nn":{}, "roa_info_lqr":{}, "policy_info":{}}
@@ -487,10 +487,17 @@ for k in range(args.roa_outer_iters):
     print("c_max_exp_true: {}".format(c_true))
     c = lyapunov_nn.c_max_exp_nominal
     print("c_max_exp_nominal: {}".format(c))
-    print("Largest ROA contained: {}".format(lyapunov_nn.largest_safe_set_true.sum()))
-    print("Largest exp stable contained: {}".format(lyapunov_nn.largest_exp_stable_set_true.sum()))
-    print("ROA size: {}".format(lyapunov_nn.safe_set_true.sum()))
-    print("Exp stable size: {}".format(lyapunov_nn.exp_stable_set_true.sum()))
+    # Print stable sets of true system
+    print("Size of largest_safe_set_true: {}".format(lyapunov_nn.largest_safe_set_true.sum()))
+    print("Size of largest_exp_stable_set_true: {}".format(lyapunov_nn.largest_exp_stable_set_true.sum()))
+    print("Size of safe_set_true: {}".format(lyapunov_nn.safe_set_true.sum()))
+    print("Size of exp_stable_set_true: {}".format(lyapunov_nn.exp_stable_set_true.sum()))
+    # Print stable sets of nominal system
+    print("Size of largest_safe_set_nominal: {}".format(lyapunov_nn.largest_safe_set_nominal.sum()))
+    print("Size of largest_exp_stable_set_nominal: {}".format(lyapunov_nn.largest_exp_stable_set_nominal.sum()))
+    print("Size of safe_set_nominal: {}".format(lyapunov_nn.safe_set_nominal.sum()))
+    print("Size of exp_stable_set_nominal: {}".format(lyapunov_nn.exp_stable_set_nominal.sum()))
+    
     idx_small = lyapunov_nn.values.detach().cpu().numpy().ravel() <= c
     if args.roa_adaptive_level_multiplier:
         level_multiplier = 1 + args.roa_level_multiplier/((k//args.roa_adaptive_level_multiplier_step)+1)
