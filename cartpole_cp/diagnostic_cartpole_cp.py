@@ -29,7 +29,7 @@ from systems import CartPole, CartPole_SINDy
 import warnings
 warnings.filterwarnings("ignore")
 
-exp_num = 2200
+exp_num = 3000
 
 # results_dir = '{}/results/exp_{:03d}_keep_eg3'.format(str(Path(__file__).parent.parent), exp_num)
 # results_dir = '{}/results/exp_{:03d}'.format(str(Path(__file__).parent.parent), exp_num)
@@ -215,13 +215,17 @@ lyapunov_nn = load_lyapunov_nn(lyapunov_nn, full_path=os.path.join(results_dir, 
 lyapunov_nn.update_values()
 
 training_info = load_dict(os.path.join(results_dir, "training_info.npy"))
-c = training_info["roa_info_nn"]["nominal_c_max_values"][-1]
-print("nominal_c_max_values:", c)
-print("true_c_max_exp_values:", training_info["roa_info_nn"]["true_c_max_exp_values"][-1])
 
+print("nominal_c_max_values:", training_info["roa_info_nn"]["nominal_c_max_values"][-1])
+print("true_c_max_values:", training_info["roa_info_nn"]["true_c_max_values"][-1])
+print("nominal_c_max_exp_values:", training_info["roa_info_nn"]["nominal_c_max_exp_values"][-1])
+print("true_c_max_exp_values:", training_info["roa_info_nn"]["true_c_max_exp_values"][-1])
+print("nominal_c_max_exp_unconstrained_values:", training_info["roa_info_nn"]["nominal_c_max_exp_unconstrained_values"][-1])
+print("true_c_max_exp_unconstrained_values:", training_info["roa_info_nn"]["true_c_max_exp_unconstrained_values"][-1])
+print("=============================================")
 print("nominal_exp_stable_set_sizes", training_info["roa_info_nn"]["nominal_exp_stable_set_sizes"][-1])
-print("nominal_largest_exp_stable_set_sizes", training_info["roa_info_nn"]["nominal_largest_exp_stable_set_sizes"][-1])
 print("true_exp_stable_set_sizes", training_info["roa_info_nn"]["true_exp_stable_set_sizes"][-1])
+print("nominal_largest_exp_stable_set_sizes", training_info["roa_info_nn"]["nominal_largest_exp_stable_set_sizes"][-1])
 print("true_largest_exp_stable_set_sizes", training_info["roa_info_nn"]["true_largest_exp_stable_set_sizes"][-1])
 
 fig = plt.figure(figsize=(10, 7), dpi=config.dpi, frameon=False)
@@ -232,7 +236,7 @@ plt.plot(range(args.roa_outer_iters), training_info["roa_info_nn"]["nominal_exp_
 plt.legend(loc="center left")
 plt.xlabel("Iteration")
 plt.tight_layout()
-plt.savefig(os.path.join(results_dir, '00sizes_of_stable_sets.pdf'), dpi=config.dpi)
+plt.savefig(os.path.join(results_dir, '00sizes_of_exp_stable_sets.pdf'), dpi=config.dpi)
 plt.clf()
 
 fig = plt.figure(figsize=(10, 7), dpi=config.dpi, frameon=False)
@@ -243,11 +247,12 @@ plt.plot(range(args.roa_outer_iters), training_info["roa_info_nn"]["nominal_larg
 plt.legend(loc="center left")
 plt.xlabel("Iteration")
 plt.tight_layout()
-plt.savefig(os.path.join(results_dir, '00sizes_of_largest_stable_sets.pdf'), dpi=config.dpi)
+plt.savefig(os.path.join(results_dir, '00sizes_of_largest_exp_stable_sets.pdf'), dpi=config.dpi)
 plt.clf()
 
 print("Determining the limit points")
-ind_higher = lyapunov_nn.values.detach().cpu().numpy().ravel() <= c
+c = training_info["roa_info_nn"]["nominal_c_max_exp_values"][-1]
+ind_higher = lyapunov_nn.values.detach().cpu().numpy().ravel() <= 8.29
 ind_lower = lyapunov_nn.values.detach().cpu().numpy().ravel() <= c - 0.01
 ind = np.logical_and(ind_higher, ~ind_lower)
 print(np.sum(ind))
@@ -257,7 +262,7 @@ horizon = 600
 dt = 0.01
 time = [i*dt for i in range(horizon)]
 target_set = grid.all_points[ind]
-batch_inds = np.random.choice(target_set.shape[0], 10, replace=False)
+batch_inds = np.random.choice(target_set.shape[0], min(20, target_set.shape[0]), replace=False)
 end_states = target_set[batch_inds]
 
 trajectories = np.empty((end_states.shape[0], end_states.shape[1], horizon))
@@ -333,6 +338,17 @@ plt.ylabel(r"norm of states", fontsize=labelsize)
 # plt.ylim(plot_limits[3])
 plt.tight_layout()
 plt.savefig(os.path.join(results_dir, '00traj_test_norm.pdf'), dpi=config.dpi)
+plt.clf()
+
+for i in range(end_states.shape[0]):
+    V = lyapunov_nn.lyapunov_function(trajectories[i, :, :].T) # use normalized traj for computing CLF
+    plt.plot(time, V.detach().numpy(), linewidth = lw, label = "Trajectory " + str(i+1))
+plt.xticks(fontsize = ticksize)
+plt.yticks(fontsize = ticksize)
+plt.xlabel(r"time (s)", fontsize=labelsize)
+plt.ylabel(r"CLF", fontsize=labelsize)
+plt.tight_layout()
+plt.savefig(os.path.join(results_dir, '00traj_test_CLF.pdf'), dpi=config.dpi)
 plt.clf()
 
 for i in range(end_states.shape[0]):
