@@ -62,4 +62,5 @@ def getArgs(argv=None):
     parser.add_argument('--image_save_format_3d', default="png", type=str, help='png or pdf')
     parser.add_argument('--cutoff_radius', default=0.1, type=float, help='learning rate to train the controller')
     parser.add_argument('--use_cp', default=False, type=str2bool, help='Use conformal prediction or not')
+    parser.add_argument('--roa_decrease_loss_cp_coeff', default=100, type=float, help='the weight of the decrease condition with cp in the total objective')
     return parser.parse_args(argv)

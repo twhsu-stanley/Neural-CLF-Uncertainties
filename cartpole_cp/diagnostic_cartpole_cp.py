@@ -24,12 +24,12 @@ from mars.parser_tools import getArgs
 from examples.systems_config import all_systems 
 from examples.example_utils import load_dict
 
-from systems import CartPole, CartPole_SINDy
+from systems import CartPole, CartPole_SINDy, CartPole_SINDy_coarse
 
 import warnings
 warnings.filterwarnings("ignore")
 
-exp_num = 3000
+exp_num = 3100
 
 # results_dir = '{}/results/exp_{:03d}_keep_eg3'.format(str(Path(__file__).parent.parent), exp_num)
 # results_dir = '{}/results/exp_{:03d}'.format(str(Path(__file__).parent.parent), exp_num)
@@ -38,6 +38,7 @@ exp_num = 3000
 results_dir = '{}/results/exp_{:02d}'.format(str(Path(__file__).parent.parent), exp_num)
 
 # Plot ROAs #######################################################################################################
+"""
 print("#################### Constrained RoA ####################")
 training_info = load_dict(os.path.join(results_dir, "training_info.npy"))
 grid_size = training_info["grid_size"]
@@ -90,7 +91,7 @@ plt.tick_params(axis='both', which='major', labelsize=ticksize, grid_linewidth=2
 plt.tight_layout()
 plt.savefig(os.path.join(results_dir, '00roa_ratio.pdf'), dpi=config.dpi)
 plt.clf()
-
+"""
 #####################################################################################################
 with open(os.path.join(results_dir, "00hyper_parameters.txt"), "r") as f:
     lines = f.readlines()
@@ -135,6 +136,7 @@ b_true = 0 # friction coeff
 # Initialize the true system
 system_true = CartPole(m_true, M_true, l_true, b_true, dt, [state_norm, action_norm])
 #system_true = CartPole_SINDy(dt, [state_norm, action_norm])
+#system_true = CartPole_SINDy_coarse(dt, [state_norm, action_norm])
 
 # Open-loop true dynamics
 dynamics_true = lambda x, y: system_true.ode_normalized(x, y)
@@ -152,6 +154,7 @@ b_nominal = 0 # friction coeff
 # Initialize the nominal system
 #system_nominal = CartPole(m_nominal, M_nominal, l_nominal, b_nominal, dt, [state_norm, action_norm])
 system_nominal = CartPole_SINDy(dt, [state_norm, action_norm])
+#system_nominal = CartPole_SINDy_coarse(dt, [state_norm, action_norm])
 
 # Open-loop nominal dynamics
 dynamics_nominal = lambda x, y: system_nominal.ode_normalized(x, y)
@@ -159,7 +162,7 @@ dynamics_nominal = lambda x, y: system_nominal.ode_normalized(x, y)
 # Set up computation domain and the initial safe set
 # State grid
 grid_limits = np.array([[-1., 1.], ] * state_dim)
-resolution = args.grid_resolution # Number of states divisions each dimension
+resolution = args.grid_resolution * 3 # Number of states divisions each dimension
 grid = mars.GridWorld(grid_limits, resolution)
 tau = np.sum(grid.unit_maxes) / 2
 u_max = system_true.normalization[1].item()
@@ -251,9 +254,12 @@ plt.savefig(os.path.join(results_dir, '00sizes_of_largest_exp_stable_sets.pdf'),
 plt.clf()
 
 print("Determining the limit points")
-c = training_info["roa_info_nn"]["nominal_c_max_exp_values"][-1]
-ind_higher = lyapunov_nn.values.detach().cpu().numpy().ravel() <= 8.29
-ind_lower = lyapunov_nn.values.detach().cpu().numpy().ravel() <= c - 0.01
+c_ub = training_info["roa_info_nn"]["nominal_c_max_exp_values"][-1]
+c_lb = training_info["roa_info_nn"]["true_c_max_exp_values"][-1]
+#c_ub = training_info["roa_info_nn"]["nominal_c_max_values"][-1]
+#c_lb = training_info["roa_info_nn"]["true_c_max_values"][-1]
+ind_higher = lyapunov_nn.values.detach().cpu().numpy().ravel() < c_ub
+ind_lower = lyapunov_nn.values.detach().cpu().numpy().ravel() <= min(c_ub - 0.05, c_lb)
 ind = np.logical_and(ind_higher, ~ind_lower)
 print(np.sum(ind))
 
@@ -262,7 +268,7 @@ horizon = 600
 dt = 0.01
 time = [i*dt for i in range(horizon)]
 target_set = grid.all_points[ind]
-batch_inds = np.random.choice(target_set.shape[0], min(20, target_set.shape[0]), replace=False)
+batch_inds = np.random.choice(target_set.shape[0], min(60, target_set.shape[0]), replace=False)
 end_states = target_set[batch_inds]
 
 trajectories = np.empty((end_states.shape[0], end_states.shape[1], horizon))
@@ -279,7 +285,7 @@ with torch.no_grad():
 plot_limits = np.dot(Tx, grid_limits)
 labelsize = 50
 ticksize = 40
-lw = 4
+lw = 1
 fig = plt.figure(figsize=(10, 7), dpi=config.dpi, frameon=False)
 plt.rc('text', usetex=True)
 plt.rc('font', family='serif')
@@ -290,7 +296,7 @@ plt.xticks(fontsize = ticksize)
 plt.yticks(fontsize = ticksize)
 plt.xlabel(r"time (s)", fontsize=labelsize)
 plt.ylabel(r"$x$", fontsize=labelsize)
-plt.ylim(plot_limits[0])
+#plt.ylim(plot_limits[0])
 plt.tight_layout()
 plt.savefig(os.path.join(results_dir, '00traj_test_x.pdf'), dpi=config.dpi)
 plt.clf()
@@ -301,7 +307,7 @@ plt.xticks(fontsize = ticksize)
 plt.yticks(fontsize = ticksize)
 plt.xlabel(r"time (s)", fontsize=labelsize)
 plt.ylabel(r"$\theta$", fontsize=labelsize)
-plt.ylim(plot_limits[1])
+#plt.ylim(plot_limits[1])
 plt.tight_layout()
 plt.savefig(os.path.join(results_dir, '00traj_test_theta.pdf'), dpi=config.dpi)
 plt.clf()
@@ -312,7 +318,7 @@ plt.xticks(fontsize = ticksize)
 plt.yticks(fontsize = ticksize)
 plt.xlabel(r"time (s)", fontsize=labelsize)
 plt.ylabel(r"$v$", fontsize=labelsize)
-plt.ylim(plot_limits[2])
+#plt.ylim(plot_limits[2])
 plt.tight_layout()
 plt.savefig(os.path.join(results_dir, '00traj_test_v.pdf'), dpi=config.dpi)
 plt.clf()
@@ -323,7 +329,7 @@ plt.xticks(fontsize = ticksize)
 plt.yticks(fontsize = ticksize)
 plt.xlabel(r"time (s)", fontsize=labelsize)
 plt.ylabel(r"$\omega$", fontsize=labelsize)
-plt.ylim(plot_limits[3])
+#plt.ylim(plot_limits[3])
 plt.tight_layout()
 plt.savefig(os.path.join(results_dir, '00traj_test_omega.pdf'), dpi=config.dpi)
 plt.clf()

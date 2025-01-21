@@ -128,7 +128,7 @@ def train_largest_ROA_Adam(target_set, lyapunov_nn, policy, closed_loop_dynamics
                       niters, lyapunov_learning_rate, policy_learning_rate,
                       alpha, decrease_offset, beta, decrease_loss_coeff, Lipschitz_loss_coeff, size_loss_coeff,
                       fullpath_to_save_objectives=None, verbose=False, optimizer=None, lr_scheduler=None,
-                      use_cp = False, cp_quantile = None):
+                      use_cp = False, cp_quantile = None, decrease_loss_cp_coeff = 100):
     if optimizer == None:
         optimizer = optim.Adam([
                 {'params': lyapunov_nn.grad_lyapunov_function.parameters(), 'lr': lyapunov_learning_rate},
@@ -137,12 +137,17 @@ def train_largest_ROA_Adam(target_set, lyapunov_nn, policy, closed_loop_dynamics
     trainloader = torch.utils.data.DataLoader(target_set, batch_size=batchsize, shuffle=True)
     n_minibatch = len(trainloader)
     dot_vnn = lambda x: torch.sum(torch.mul(lyapunov_nn.grad_lyapunov_function(x), closed_loop_dynamics(x)),1)
-    all_objectives_record = {"decrease":np.zeros(niters), "Lipschitz":np.zeros(niters), "decrease_cp":np.zeros(niters), "size":np.zeros(niters)}
+    all_objectives_record = {"decrease":np.zeros(niters),
+                             "Lipschitz":np.zeros(niters), 
+                             "decrease_cp":np.zeros(niters), 
+                             "roa_reg":np.zeros(niters), 
+                             "size":np.zeros(niters)}
     offset = decrease_offset
     for k in tqdm(range(niters)):
         decrease_epoch_loss = 0
         lipschitze_epoch_loss = 0
         decrease_cp_epoch_loss = 0
+        roa_reg_epoch_loss = 0
         for ind_in, target_states_batch in enumerate(trainloader):
             # Training step
             optimizer.zero_grad()
@@ -169,24 +174,32 @@ def train_largest_ROA_Adam(target_set, lyapunov_nn, policy, closed_loop_dynamics
                 , torch.tensor(0, dtype=config.ptdtype, device=config.device) \
                 ).reshape(-1, 1)
 
-                objective_decrease_condition_cp = torch.mean(decrease_loss_coeff/5 * decrease_loss_cp)
+                objective_decrease_condition_cp = torch.mean(decrease_loss_cp_coeff * decrease_loss_cp)
             
             else:
                 objective_decrease_condition_cp = torch.tensor(0.0)
-            #################################################################################################
+
+            #TODO: roa regulation term
+            roa_reg_loss = torch.max(
+                -lyapunov_nn.lyapunov_function(target_states_batch) +\
+                0.05 * torch.norm(torch.tensor(target_states_batch, dtype=config.ptdtype, device=config.device), p=2, dim=1),
+                torch.tensor(0, dtype=config.ptdtype, device=config.device)
+            )
+            objective_roa_reg = torch.mean(5 * roa_reg_loss)
 
             objective_decrease_condition = torch.mean(decrease_loss_coeff * decrease_loss)
             objective_Lipschitz = torch.mean(Lipschitz_loss_coeff * Lipschitz_loss)
-            objective = objective_decrease_condition + objective_Lipschitz + objective_decrease_condition_cp
+            objective = objective_decrease_condition + objective_Lipschitz + objective_decrease_condition_cp + objective_roa_reg
 
             objective.backward()
             optimizer.step()
             decrease_epoch_loss = decrease_epoch_loss + objective_decrease_condition.item()
             lipschitze_epoch_loss = lipschitze_epoch_loss + objective_Lipschitz.item()
             decrease_cp_epoch_loss = decrease_cp_epoch_loss + objective_decrease_condition_cp.item()
+            roa_reg_epoch_loss = roa_reg_epoch_loss + objective_roa_reg.item()
 
-        all_objectives_record["decrease"][k], all_objectives_record["Lipschitz"][k], all_objectives_record["decrease_cp"][k]\
-                = decrease_epoch_loss/n_minibatch, lipschitze_epoch_loss/n_minibatch, decrease_cp_epoch_loss/n_minibatch
+        all_objectives_record["decrease"][k], all_objectives_record["Lipschitz"][k], all_objectives_record["decrease_cp"][k], all_objectives_record["roa_reg"][k]\
+                = decrease_epoch_loss/n_minibatch, lipschitze_epoch_loss/n_minibatch, decrease_cp_epoch_loss/n_minibatch, roa_reg_epoch_loss/n_minibatch
 
     if lr_scheduler != None:
         lr_scheduler.step()
@@ -195,10 +208,13 @@ def train_largest_ROA_Adam(target_set, lyapunov_nn, policy, closed_loop_dynamics
         plt.rc('text', usetex=True)
         plt.rc('font', family='serif')
         fig, ax = plt.subplots(figsize=(10, 10), dpi=config.dpi, frameon=False)
-        y_axis_values = np.concatenate([all_objectives_record["decrease"].reshape(niters, 1),\
-             all_objectives_record["Lipschitz"].reshape(niters, 1), all_objectives_record["decrease_cp"].reshape(niters, 1)], 1)
+        y_axis_values = np.concatenate([all_objectives_record["decrease"].reshape(niters, 1),
+                                        all_objectives_record["Lipschitz"].reshape(niters, 1), 
+                                        all_objectives_record["decrease_cp"].reshape(niters, 1),
+                                        all_objectives_record["roa_reg"].reshape(niters, 1)]
+                                        , 1)
         ax.plot(np.arange(0, niters).reshape(niters, 1), y_axis_values, linewidth=1)
-        ax.legend(["Decrease", "Lipschitz", "Decrease CP"])
+        ax.legend(["Decrease", "Lipschitz", "Decrease CP", "ROA reg"])
         ax.set_xlabel("iters", fontsize=20)
         ax.set_ylabel("objective value", fontsize=20)
         ax.tick_params(axis='both', which='major', labelsize=10, grid_linewidth=10)

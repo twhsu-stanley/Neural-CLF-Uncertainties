@@ -33,7 +33,7 @@ from mars.parser_tools import getArgs
 from examples.systems_config import all_systems 
 from examples.example_utils import build_system, LyapunovNetwork, compute_roa_ct, balanced_class_weights, generate_trajectories, save_dict, load_dict
 
-from systems import CartPole, CartPole_SINDy
+from systems import CartPole, CartPole_SINDy, CartPole_SINDy_coarse
 
 try:
     from tqdm import tqdm
@@ -69,7 +69,7 @@ input_args_str = "\
 --roa_decrease_loss_coeff 500.0\
 --roa_decrease_alpha 0.1\
 --roa_decrease_offset 0.0\
---roa_lipschitz_loss_coeff 0.001\
+--roa_lipschitz_loss_coeff 0.0\
 --roa_c_target 0.04\
 --roa_classification_loss_coeff 2\
 --controller_nn_sizes [32,32,32,1]\
@@ -87,10 +87,11 @@ input_args_str = "\
 --controller_train_slope True\
 --verbose True\
 --image_save_format pdf\
---exp_num 2300\
+--exp_num 3400\
 --use_cuda False\
 --cutoff_radius 0.4\
---use_cp False"
+--use_cp True\
+--roa_decrease_loss_cp_coeff 50.0"
 
 input_args_temp = input_args_str.split("--")
 input_args = []
@@ -186,6 +187,7 @@ b_nominal = 0 # friction coeff
 # Initialize the nominal system
 #system_nominal = CartPole(m_nominal, M_nominal, l_nominal, b_nominal, dt, [state_norm, action_norm])
 system_nominal = CartPole_SINDy(dt, [state_norm, action_norm])
+#system_nominal = CartPole_SINDy_coarse(dt, [state_norm, action_norm])
 
 # Open-loop nominal dynamics
 dynamics_nominal = lambda x, y: system_nominal.ode_normalized(x, y)
@@ -421,7 +423,7 @@ for k in range(args.roa_outer_iters):
         args.roa_decrease_loss_coeff, args.roa_lipschitz_loss_coeff, args.roa_size_loss_coeff,
         fullpath_to_save_objectives=os.path.join(results_dir, 'roa_training_loss_iter_{}.{}'.format(k+1, args.image_save_format)),
         verbose = False, optimizer = None, lr_scheduler = None,
-        use_cp = args.use_cp, cp_quantile = system_nominal.cp_quantile)
+        use_cp = args.use_cp, cp_quantile = system_nominal.cp_quantile, decrease_loss_cp_coeff = args.roa_decrease_loss_cp_coeff)
     save_lyapunov_nn(lyapunov_nn, full_path=os.path.join(results_dir, 'trained_lyapunov_nn_iter_{}.net'.format(k+1)))
     save_controller_nn(policy, full_path=os.path.join(results_dir, 'trained_controller_nn_iter_{}.net'.format(k+1)))
     print("Policy:", policy.mul_low_slope_param, policy.mul_high_slope_param)
