@@ -126,7 +126,7 @@ def pretrain_lyapunov_nn_Adam(grid, lyapunov_nn, target_lyapunov, batchsize, n_i
 
 def train_largest_ROA_Adam(target_set, lyapunov_nn, policy, closed_loop_dynamics, batchsize,
                       niters, lyapunov_learning_rate, policy_learning_rate,
-                      alpha, decrease_offset, beta, decrease_loss_coeff, Lipschitz_loss_coeff, size_loss_coeff,
+                      alpha, decrease_offset, roa_reg_loss_beta, decrease_loss_coeff, Lipschitz_loss_coeff, roa_reg_loss_coeff,
                       fullpath_to_save_objectives=None, verbose=False, optimizer=None, lr_scheduler=None,
                       use_cp = False, cp_quantile = None, decrease_loss_cp_coeff = 100):
     if optimizer == None:
@@ -180,12 +180,15 @@ def train_largest_ROA_Adam(target_set, lyapunov_nn, policy, closed_loop_dynamics
                 objective_decrease_condition_cp = torch.tensor(0.0)
 
             #TODO: roa regulation term
+            # beta = 0.1
+            # roa_reg_loss_coeff = 5
             roa_reg_loss = torch.max(
                 -lyapunov_nn.lyapunov_function(target_states_batch) +\
-                0.05 * torch.norm(torch.tensor(target_states_batch, dtype=config.ptdtype, device=config.device), p=2, dim=1),
+                roa_reg_loss_beta * torch.norm(torch.tensor(target_states_batch, dtype=config.ptdtype, device=config.device), p=2, dim=1).reshape(-1, 1),
                 torch.tensor(0, dtype=config.ptdtype, device=config.device)
             )
-            objective_roa_reg = torch.mean(5 * roa_reg_loss)
+            roa_reg_loss = roa_reg_loss * (torch.norm(torch.tensor(target_states_batch, dtype=config.ptdtype, device=config.device), p=2, dim=1).reshape(-1, 1) > 0.05)
+            objective_roa_reg = torch.mean(roa_reg_loss_coeff * roa_reg_loss)
 
             objective_decrease_condition = torch.mean(decrease_loss_coeff * decrease_loss)
             objective_Lipschitz = torch.mean(Lipschitz_loss_coeff * Lipschitz_loss)

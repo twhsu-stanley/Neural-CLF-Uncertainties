@@ -352,7 +352,7 @@ class Lyapunov_CT(object):
         setattr(self, 'c_max_' + true_or_nominal, c_max_tmp)
         
         
-    def update_exp_stable_set(self, alpha, true_or_nominal, roa_true, use_cp = False, cp_quantile = 0.0):
+    def update_exp_stable_set(self, alpha, true_or_nominal, roa_true):
         if true_or_nominal != "true" and true_or_nominal != "nominal":
             raise ValueError("Have to choose between true or nominal!")
         closed_loop_dynamics = getattr(self, 'closed_loop_dynamics_' + true_or_nominal)
