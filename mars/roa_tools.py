@@ -180,14 +180,12 @@ def train_largest_ROA_Adam(target_set, lyapunov_nn, policy, closed_loop_dynamics
                 objective_decrease_condition_cp = torch.tensor(0.0)
 
             #TODO: roa regulation term
-            # beta = 0.1
-            # roa_reg_loss_coeff = 5
             roa_reg_loss = torch.max(
                 -lyapunov_nn.lyapunov_function(target_states_batch) +\
                 roa_reg_loss_beta * torch.norm(torch.tensor(target_states_batch, dtype=config.ptdtype, device=config.device), p=2, dim=1).reshape(-1, 1),
                 torch.tensor(0, dtype=config.ptdtype, device=config.device)
             )
-            roa_reg_loss = roa_reg_loss * (torch.norm(torch.tensor(target_states_batch, dtype=config.ptdtype, device=config.device), p=2, dim=1).reshape(-1, 1) > 0.05)
+            #roa_reg_loss = roa_reg_loss * (torch.norm(torch.tensor(target_states_batch, dtype=config.ptdtype, device=config.device), p=2, dim=1).reshape(-1, 1) > 0.05)
             objective_roa_reg = torch.mean(roa_reg_loss_coeff * roa_reg_loss)
 
             objective_decrease_condition = torch.mean(decrease_loss_coeff * decrease_loss)

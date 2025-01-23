@@ -29,7 +29,7 @@ from systems import CartPole, CartPole_SINDy, CartPole_SINDy_coarse
 import warnings
 warnings.filterwarnings("ignore")
 
-exp_num = 3100
+exp_num = 3437
 
 # results_dir = '{}/results/exp_{:03d}_keep_eg3'.format(str(Path(__file__).parent.parent), exp_num)
 # results_dir = '{}/results/exp_{:03d}'.format(str(Path(__file__).parent.parent), exp_num)
@@ -162,7 +162,7 @@ dynamics_nominal = lambda x, y: system_nominal.ode_normalized(x, y)
 # Set up computation domain and the initial safe set
 # State grid
 grid_limits = np.array([[-1., 1.], ] * state_dim)
-resolution = args.grid_resolution * 3 # Number of states divisions each dimension
+resolution = args.grid_resolution * 4 # Number of states divisions each dimension
 grid = mars.GridWorld(grid_limits, resolution)
 tau = np.sum(grid.unit_maxes) / 2
 u_max = system_true.normalization[1].item()
@@ -259,7 +259,7 @@ c_lb = training_info["roa_info_nn"]["true_c_max_exp_values"][-1]
 #c_ub = training_info["roa_info_nn"]["nominal_c_max_values"][-1]
 #c_lb = training_info["roa_info_nn"]["true_c_max_values"][-1]
 ind_higher = lyapunov_nn.values.detach().cpu().numpy().ravel() < c_ub
-ind_lower = lyapunov_nn.values.detach().cpu().numpy().ravel() <= min(c_ub - 0.05, c_lb)
+ind_lower = lyapunov_nn.values.detach().cpu().numpy().ravel() <= min(c_ub - 0.01, c_lb)
 ind = np.logical_and(ind_higher, ~ind_lower)
 print(np.sum(ind))
 
@@ -268,7 +268,7 @@ horizon = 600
 dt = 0.01
 time = [i*dt for i in range(horizon)]
 target_set = grid.all_points[ind]
-batch_inds = np.random.choice(target_set.shape[0], min(60, target_set.shape[0]), replace=False)
+batch_inds = np.random.choice(target_set.shape[0], min(200, target_set.shape[0]), replace=False)
 end_states = target_set[batch_inds]
 
 trajectories = np.empty((end_states.shape[0], end_states.shape[1], horizon))
