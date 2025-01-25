@@ -29,7 +29,7 @@ from systems import CartPole, CartPole_SINDy, CartPole_SINDy_coarse
 import warnings
 warnings.filterwarnings("ignore")
 
-exp_num = 3437
+exp_num = 3200
 
 # results_dir = '{}/results/exp_{:03d}_keep_eg3'.format(str(Path(__file__).parent.parent), exp_num)
 # results_dir = '{}/results/exp_{:03d}'.format(str(Path(__file__).parent.parent), exp_num)
@@ -55,10 +55,10 @@ post_proc_info = load_dict(os.path.join(results_dir, "00post_proc_info.npy"))
 forward_invariant_size = np.array(post_proc_info["forward_invariant_size"])
 
 forward_invariant_ratio = forward_invariant_size/grid_size
-print("forward_invariant_ratio", forward_invariant_ratio[0], forward_invariant_ratio[-1])
-print("true_roa_ratio_nn: ", true_roa_ratio_nn[0], true_roa_ratio_nn[-1])
-print("true_largest_exp_stable_ratio_nn: ", true_largest_exp_stable_ratio_nn[-1])
-print("nominal_largest_exp_stable_ratio_nn: ", nominal_largest_exp_stable_ratio_nn[-1])
+print("forward_invariant_ratio", forward_invariant_ratio[0], forward_invariant_ratio[args.roa_outer_iters])
+print("true_roa_ratio_nn: ", true_roa_ratio_nn[0], true_roa_ratio_nn[args.roa_outer_iters])
+print("true_largest_exp_stable_ratio_nn: ", true_largest_exp_stable_ratio_nn[args.roa_outer_iters])
+print("nominal_largest_exp_stable_ratio_nn: ", nominal_largest_exp_stable_ratio_nn[args.roa_outer_iters])
 
 roa_info = training_info["roa_info_lqr"]
 true_largest_exp_stable_set_sizes = np.array(roa_info["true_largest_exp_stable_set_sizes"])
@@ -67,8 +67,8 @@ nominal_largest_exp_stable_set_sizes = np.array(roa_info["nominal_largest_exp_st
 true_largest_exp_stable_ratio_lqr = true_largest_exp_stable_set_sizes/grid_size
 nominal_largest_exp_stable_ratio_lqr = nominal_largest_exp_stable_set_sizes/grid_size
 
-print("true_largest_exp_stable_ratio_lqr: ", true_largest_exp_stable_ratio_lqr[-1])
-print("nominal_largest_exp_stable_ratio_lqr: ", nominal_largest_exp_stable_ratio_lqr[-1])
+print("true_largest_exp_stable_ratio_lqr: ", true_largest_exp_stable_ratio_lqr[args.roa_outer_iters])
+print("nominal_largest_exp_stable_ratio_lqr: ", nominal_largest_exp_stable_ratio_lqr[args.roa_outer_iters])
 
 fig = plt.figure(figsize=(10, 10), dpi=config.dpi, frameon=False)
 # fig = plt.figure(figsize=(50, 10), dpi=config.dpi, frameon=False)
@@ -103,6 +103,8 @@ for line in lines:
     input_args.append(a)
     input_args.append(b)
 args = getArgs(input_args)
+
+#args.roa_outer_iters = 20
 
 device = config.device
 print('Pytorch using device:', device)
@@ -203,6 +205,7 @@ policy = load_controller_nn(policy, full_path=os.path.join(results_dir, "trained
 
 # Close loop dynamics with NN control policy
 closed_loop_dynamics_true = lambda states: dynamics_true(torch.tensor(states, device = device), policy(torch.tensor(states, device = device))) 
+closed_loop_dynamics_nominal = lambda states: dynamics_nominal(torch.tensor(states, device = device), policy(torch.tensor(states, device = device)))
 
 # Initialize the NN Lyapunov Function #############################################################################################
 L_pol = lambda x: np.linalg.norm(-K, 1) # # Policy (linear)
@@ -211,7 +214,7 @@ L_dyn = lambda x: np.linalg.norm(A, 1) + np.linalg.norm(B, 1) * L_pol(x) # Dynam
 layer_dims = eval(args.roa_nn_sizes)
 layer_activations = eval(args.roa_nn_activations)
 decrease_thresh = args.lyapunov_decrease_threshold
-lyapunov_nn, grad_lyapunov_nn, dv_nn, L_v, tau = initialize_lyapunov_nn(grid, closed_loop_dynamics_true, None, L_dyn, 
+lyapunov_nn, grad_lyapunov_nn, dv_nn, L_v, tau = initialize_lyapunov_nn(grid, closed_loop_dynamics_true, closed_loop_dynamics_nominal, L_dyn, 
             initial_safe_set, decrease_thresh, args.roa_nn_structure, state_dim, layer_dims, 
             layer_activations)
 lyapunov_nn = load_lyapunov_nn(lyapunov_nn, full_path=os.path.join(results_dir, "trained_lyapunov_nn_iter_{}.net".format(args.roa_outer_iters)))
@@ -219,23 +222,23 @@ lyapunov_nn.update_values()
 
 training_info = load_dict(os.path.join(results_dir, "training_info.npy"))
 
-print("nominal_c_max_values:", training_info["roa_info_nn"]["nominal_c_max_values"][-1])
-print("true_c_max_values:", training_info["roa_info_nn"]["true_c_max_values"][-1])
-print("nominal_c_max_exp_values:", training_info["roa_info_nn"]["nominal_c_max_exp_values"][-1])
-print("true_c_max_exp_values:", training_info["roa_info_nn"]["true_c_max_exp_values"][-1])
-print("nominal_c_max_exp_unconstrained_values:", training_info["roa_info_nn"]["nominal_c_max_exp_unconstrained_values"][-1])
-print("true_c_max_exp_unconstrained_values:", training_info["roa_info_nn"]["true_c_max_exp_unconstrained_values"][-1])
+print("nominal_c_max_values:", training_info["roa_info_nn"]["nominal_c_max_values"][args.roa_outer_iters])
+print("true_c_max_values:", training_info["roa_info_nn"]["true_c_max_values"][args.roa_outer_iters])
+print("nominal_c_max_exp_values:", training_info["roa_info_nn"]["nominal_c_max_exp_values"][args.roa_outer_iters])
+print("true_c_max_exp_values:", training_info["roa_info_nn"]["true_c_max_exp_values"][args.roa_outer_iters])
+print("nominal_c_max_exp_unconstrained_values:", training_info["roa_info_nn"]["nominal_c_max_exp_unconstrained_values"][args.roa_outer_iters])
+print("true_c_max_exp_unconstrained_values:", training_info["roa_info_nn"]["true_c_max_exp_unconstrained_values"][args.roa_outer_iters])
 print("=============================================")
-print("nominal_exp_stable_set_sizes", training_info["roa_info_nn"]["nominal_exp_stable_set_sizes"][-1])
-print("true_exp_stable_set_sizes", training_info["roa_info_nn"]["true_exp_stable_set_sizes"][-1])
-print("nominal_largest_exp_stable_set_sizes", training_info["roa_info_nn"]["nominal_largest_exp_stable_set_sizes"][-1])
-print("true_largest_exp_stable_set_sizes", training_info["roa_info_nn"]["true_largest_exp_stable_set_sizes"][-1])
+print("nominal_exp_stable_set_sizes", training_info["roa_info_nn"]["nominal_exp_stable_set_sizes"][args.roa_outer_iters])
+print("true_exp_stable_set_sizes", training_info["roa_info_nn"]["true_exp_stable_set_sizes"][args.roa_outer_iters])
+print("nominal_largest_exp_stable_set_sizes", training_info["roa_info_nn"]["nominal_largest_exp_stable_set_sizes"][args.roa_outer_iters])
+print("true_largest_exp_stable_set_sizes", training_info["roa_info_nn"]["true_largest_exp_stable_set_sizes"][args.roa_outer_iters])
 
 fig = plt.figure(figsize=(10, 7), dpi=config.dpi, frameon=False)
 plt.rc('text', usetex=True)
 plt.rc('font', family='serif')
-plt.plot(range(args.roa_outer_iters), training_info["roa_info_nn"]["true_exp_stable_set_sizes"][1:], linewidth = 1, label = "Size of true_exp_stable_set")
-plt.plot(range(args.roa_outer_iters), training_info["roa_info_nn"]["nominal_exp_stable_set_sizes"][1:], linewidth = 1, label = "Size of nominal_exp_stable_set")
+plt.plot(range(args.roa_outer_iters), training_info["roa_info_nn"]["true_exp_stable_set_sizes"][1:args.roa_outer_iters+1], linewidth = 1, label = "Size of true_exp_stable_set")
+plt.plot(range(args.roa_outer_iters), training_info["roa_info_nn"]["nominal_exp_stable_set_sizes"][1:args.roa_outer_iters+1], linewidth = 1, label = "Size of nominal_exp_stable_set")
 plt.legend(loc="center left")
 plt.xlabel("Iteration")
 plt.tight_layout()
@@ -245,8 +248,8 @@ plt.clf()
 fig = plt.figure(figsize=(10, 7), dpi=config.dpi, frameon=False)
 plt.rc('text', usetex=True)
 plt.rc('font', family='serif')
-plt.plot(range(args.roa_outer_iters), training_info["roa_info_nn"]["true_largest_exp_stable_set_sizes"][1:], linewidth = 1, label = "Size of true_largest_exp_stable_set")
-plt.plot(range(args.roa_outer_iters), training_info["roa_info_nn"]["nominal_largest_exp_stable_set_sizes"][1:], linewidth = 1, label = "Size of nominal_largest_exp_stable_set")
+plt.plot(range(args.roa_outer_iters), training_info["roa_info_nn"]["true_largest_exp_stable_set_sizes"][1:args.roa_outer_iters+1], linewidth = 1, label = "Size of true_largest_exp_stable_set")
+plt.plot(range(args.roa_outer_iters), training_info["roa_info_nn"]["nominal_largest_exp_stable_set_sizes"][1:args.roa_outer_iters+1], linewidth = 1, label = "Size of nominal_largest_exp_stable_set")
 plt.legend(loc="center left")
 plt.xlabel("Iteration")
 plt.tight_layout()
@@ -254,12 +257,12 @@ plt.savefig(os.path.join(results_dir, '00sizes_of_largest_exp_stable_sets.pdf'),
 plt.clf()
 
 print("Determining the limit points")
-c_ub = training_info["roa_info_nn"]["nominal_c_max_exp_values"][-1]
-c_lb = training_info["roa_info_nn"]["true_c_max_exp_values"][-1]
-#c_ub = training_info["roa_info_nn"]["nominal_c_max_values"][-1]
-#c_lb = training_info["roa_info_nn"]["true_c_max_values"][-1]
-ind_higher = lyapunov_nn.values.detach().cpu().numpy().ravel() < c_ub
-ind_lower = lyapunov_nn.values.detach().cpu().numpy().ravel() <= min(c_ub - 0.01, c_lb)
+c_ub = training_info["roa_info_nn"]["nominal_c_max_exp_values"][args.roa_outer_iters]
+c_lb = training_info["roa_info_nn"]["true_c_max_exp_values"][args.roa_outer_iters]
+#c_ub = training_info["roa_info_nn"]["nominal_c_max_values"][args.roa_outer_iters]
+#c_lb = training_info["roa_info_nn"]["true_c_max_values"][args.roa_outer_iters]
+ind_higher = lyapunov_nn.values.detach().cpu().numpy().ravel() <= c_ub
+ind_lower = lyapunov_nn.values.detach().cpu().numpy().ravel() <= min(c_ub - 0.001, c_lb)
 ind = np.logical_and(ind_higher, ~ind_lower)
 print(np.sum(ind))
 
@@ -268,7 +271,7 @@ horizon = 600
 dt = 0.01
 time = [i*dt for i in range(horizon)]
 target_set = grid.all_points[ind]
-batch_inds = np.random.choice(target_set.shape[0], min(200, target_set.shape[0]), replace=False)
+batch_inds = np.random.choice(target_set.shape[0], min(100, target_set.shape[0]), replace=False)
 end_states = target_set[batch_inds]
 
 trajectories = np.empty((end_states.shape[0], end_states.shape[1], horizon))
@@ -280,6 +283,13 @@ with torch.no_grad():
 
     for i in range(end_states.shape[0]):
         trajectories_denormalized[i, :, :] = np.matmul(Tx, trajectories[i, :, :])
+
+# Check CLF violations along the trajectories
+num_violations = 0
+for i in range(end_states.shape[0]):
+    num_violations += lyapunov_nn.traj_clf_violation((trajectories[i, :, :]).squeeze().T, args.roa_decrease_alpha)
+print("Total traj data points:", trajectories.shape[0] * trajectories.shape[2])
+print("Total traj data points that violate the CLF condition:", num_violations)
 
 # Plot the Trajectories ###########################################################################################################
 plot_limits = np.dot(Tx, grid_limits)
@@ -308,6 +318,7 @@ plt.yticks(fontsize = ticksize)
 plt.xlabel(r"time (s)", fontsize=labelsize)
 plt.ylabel(r"$\theta$", fontsize=labelsize)
 #plt.ylim(plot_limits[1])
+plt.ylim([-0.3, 0.3])
 plt.tight_layout()
 plt.savefig(os.path.join(results_dir, '00traj_test_theta.pdf'), dpi=config.dpi)
 plt.clf()
@@ -341,7 +352,6 @@ plt.xticks(fontsize = ticksize)
 plt.yticks(fontsize = ticksize)
 plt.xlabel(r"time (s)", fontsize=labelsize)
 plt.ylabel(r"norm of states", fontsize=labelsize)
-# plt.ylim(plot_limits[3])
 plt.tight_layout()
 plt.savefig(os.path.join(results_dir, '00traj_test_norm.pdf'), dpi=config.dpi)
 plt.clf()
