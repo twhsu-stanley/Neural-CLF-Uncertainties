@@ -65,12 +65,12 @@ input_args_str = "\
 --roa_batchsize 64\
 --roa_adaptive_level_multiplier False\
 --roa_adaptive_level_multiplier_step 50\
---roa_level_multiplier 15\
+--roa_level_multiplier 10\
 --roa_decrease_loss_coeff 0.0\
 --roa_decrease_alpha 0.1\
 --roa_decrease_offset 0.0\
 --roa_lipschitz_loss_coeff 0.0\
---roa_reg_loss_coeff 10\
+--roa_reg_loss_coeff 300\
 --roa_reg_loss_beta 0.15\
 --roa_c_target 0.04\
 --roa_classification_loss_coeff 2\

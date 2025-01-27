@@ -21,7 +21,7 @@ for i in range(n_features):
 
 coefficients = model["coefficients"]
 
-cp_quantile = 1.0 #model["model_error"]['quantile']
+cp_quantile = model["model_error"]['quantile']
 print("cp_quantile = ", cp_quantile)
 #################################################################################################
 
