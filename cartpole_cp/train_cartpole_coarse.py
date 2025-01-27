@@ -33,7 +33,7 @@ from mars.parser_tools import getArgs
 from examples.systems_config import all_systems 
 from examples.example_utils import build_system, LyapunovNetwork, compute_roa_ct, balanced_class_weights, generate_trajectories, save_dict, load_dict
 
-from systems import CartPole, CartPole_SINDy, CartPole_SINDy_coarse
+from systems import CartPole, CartPole_SINDy_coarse
 
 try:
     from tqdm import tqdm
@@ -56,22 +56,22 @@ input_args_str = "\
 --roa_pre_iters 10000\
 --roa_pre_batchsize 32\
 --roa_inner_iters 10\
---roa_outer_iters 80\
---roa_train_lr 6.25e-7\
---roa_lr_scheduler_step 60\
+--roa_outer_iters 100\
+--roa_train_lr 5e-6\
+--roa_lr_scheduler_step 40\
 --roa_nn_structure sum_of_two_eth\
 --roa_nn_sizes [64,64,64,64]\
 --roa_nn_activations ['tanh','tanh','tanh','tanh']\
 --roa_batchsize 64\
 --roa_adaptive_level_multiplier False\
 --roa_adaptive_level_multiplier_step 50\
---roa_level_multiplier 2.5\
+--roa_level_multiplier 15\
 --roa_decrease_loss_coeff 0.0\
 --roa_decrease_alpha 0.1\
 --roa_decrease_offset 0.0\
 --roa_lipschitz_loss_coeff 0.0\
---roa_reg_loss_coeff 5\
---roa_reg_loss_beta 0.1\
+--roa_reg_loss_coeff 10\
+--roa_reg_loss_beta 0.15\
 --roa_c_target 0.04\
 --roa_classification_loss_coeff 2\
 --controller_nn_sizes [32,32,32,1]\
@@ -84,12 +84,12 @@ input_args_str = "\
 --controller_outer_iters 2\
 --controller_level_multiplier 2\
 --controller_traj_length 10\
---controller_train_lr 6.25e-7\
+--controller_train_lr 5e-6\
 --controller_batchsize 16\
 --controller_train_slope True\
 --verbose True\
 --image_save_format pdf\
---exp_num 3441\
+--exp_num 3916\
 --use_cuda False\
 --cutoff_radius 0.4\
 --use_cp True\
@@ -107,7 +107,7 @@ args = getArgs(input_args)
 device = config.device
 print('Pytorch using device:', device)
 exp_num = args.exp_num
-results_dir = '{}/results/exp_{:03d}'.format(str(Path(__file__).parent.parent), exp_num)
+results_dir = '{}/results/cartpole_coarse_2/exp_{:03d}'.format(str(Path(__file__).parent.parent), exp_num)
 if not os.path.exists(results_dir):
     os.mkdir(results_dir)
 
@@ -148,7 +148,6 @@ b_true = 0 # friction coeff
 
 # Initialize the true system
 system_true = CartPole(m_true, M_true, l_true, b_true, dt, [state_norm, action_norm])
-#system_true = CartPole_SINDy(dt, [state_norm, action_norm])
 
 # Open-loop true dynamics
 dynamics_true = lambda x, y: system_true.ode_normalized(x, y)
@@ -181,15 +180,14 @@ with open(os.path.join(results_dir, "00true_system_params.txt"), "w") as text_fi
 
 #2. Construct the nominal system
 # Nominal system params
-m_nominal = 0.3 # pendulum mass
-M_nominal = 1 # cart mass
-l_nominal = 1 # length
-b_nominal = 0 # friction coeff
+#m_nominal = 0.3 # pendulum mass
+#M_nominal = 1 # cart mass
+#l_nominal = 1 # length
+#b_nominal = 0 # friction coeff
 
 # Initialize the nominal system
 #system_nominal = CartPole(m_nominal, M_nominal, l_nominal, b_nominal, dt, [state_norm, action_norm])
-system_nominal = CartPole_SINDy(dt, [state_norm, action_norm])
-#system_nominal = CartPole_SINDy_coarse(dt, [state_norm, action_norm])
+system_nominal = CartPole_SINDy_coarse(dt, [state_norm, action_norm])
 
 # Open-loop nominal dynamics
 dynamics_nominal = lambda x, y: system_nominal.ode_normalized(x, y)
@@ -223,13 +221,10 @@ K = K_lqr
 controller_layer_dims = eval(args.controller_nn_sizes)
 controller_layer_activations = eval(args.controller_nn_activations)
 bound = 0.5
-
-## Load controller weights
 policy = mars.NonLinearControllerLooseThreshWithLinearPartMulSlope(state_dim, controller_layer_dims,\
     -K, controller_layer_activations, initializer=torch.nn.init.xavier_uniform,\
     args={'low_thresh':-bound, 'high_thresh':bound, 'low_slope':0.0, \
     'high_slope':0.0, 'train_slope':args.controller_train_slope, 'slope_multiplier':args.controller_slope_multiplier})
-policy = load_controller_nn(policy, full_path='/home/viatorstanley23/Neural-Lyapunov-Uncertainties/results/exp_3439/trained_controller_nn_iter_20.net')
 save_controller_nn(policy, full_path=os.path.join(results_dir, 'init_controller_nn.net'))
 print("Policy:", policy.mul_low_slope_param, policy.mul_high_slope_param)
 print("Trainable Parameters (policy): ", count_parameters(policy))
@@ -288,8 +283,31 @@ print("Size of largest_exp_stable_set_true (NN init): {}".format(lyapunov_nn.lar
 print("Size of safe_set_true (NN init): {}".format(lyapunov_nn.safe_set_true.sum()))
 print("Size of exp_stable_set_true (NN init): {}".format(lyapunov_nn.exp_stable_set_true.sum()))
 
-#2.2 Load weights of the NN Lyapunov Function
-lyapunov_nn = load_lyapunov_nn(lyapunov_nn, full_path='/home/viatorstanley23/Neural-Lyapunov-Uncertainties/results/exp_3439/trained_lyapunov_nn_iter_20.net')
+#2.2 Pretrain the NN Lyapunov Function
+# Initialize quadratic Lyapunov
+P = 0.1 * np.eye(state_dim)
+lyapunov_pre, grad_lyapunov_pre, L_v_pre, L_dv_pre, tau = \
+      initialize_lyapunov_quadratic(grid, P, closed_loop_dynamics_true, closed_loop_dynamics_nominal, L_dyn, 
+                                    initial_safe_set, decrease_thresh)
+lyapunov_pre.update_values()
+lyapunov_pre.update_safe_set('true', roa_true)
+lyapunov_pre.update_exp_stable_set(args.roa_decrease_alpha, 'true', roa_true)
+lyapunov_pre.update_safe_set('nominal', roa_true)
+lyapunov_pre.update_exp_stable_set(args.roa_decrease_alpha, 'nominal', roa_true)
+
+print("Stable states: {}".format(roa_true.sum()))
+print("Size of initial_safe_set: ", initial_safe_set.sum())
+print("Size of largest_safe_set_true (pre target): {}".format(lyapunov_pre.largest_safe_set_true.sum()))
+print("Size of largest_exp_stable_set_true (pre target): {}".format(lyapunov_pre.largest_exp_stable_set_true.sum()))
+print("Size of safe_set_true (pre target): {}".format(lyapunov_pre.safe_set_true.sum()))
+print("Size of exp_stable_set_true (pre target): {}".format(lyapunov_pre.exp_stable_set_true.sum()))
+
+print("Pretrain the Lyapunov network:")
+#pretrain_lyapunov_nn_Adam(grid, lyapunov_nn, lyapunov_pre, args.roa_pre_batchsize, args.roa_pre_iters, args.roa_pre_lr,\
+#    verbose=False, full_path = os.path.join(results_dir, 'roa_training_loss_pretrain.{}'.format(args.image_save_format)))
+pretrain_lyapunov_nn(grid, lyapunov_nn, lyapunov_pre, args.roa_pre_batchsize, args.roa_pre_iters, args.roa_pre_lr,\
+    verbose=False, full_path = os.path.join(results_dir, 'roa_training_loss_pretrain.{}'.format(args.image_save_format)))
+save_lyapunov_nn(lyapunov_nn, full_path=os.path.join(results_dir, 'pretrained_lyapunov_nn.net'))
 
 lyapunov_nn.update_values()
 lyapunov_nn.update_safe_set('true', roa_true)
@@ -491,7 +509,8 @@ for k in range(args.roa_outer_iters):
     idx_exp_stable = lyapunov_nn.exp_stable_set_true
     t_epoch_stop = perf_counter()
     print("Elapsed time during iteration {} in seconds:".format(k+1), t_epoch_stop-t_epoch_start)
+    save_dict(training_info, os.path.join(results_dir, "training_info.npy"))
 
 t_stop = perf_counter()
 print("Elapsed time during training and plotting in seconds:", t_stop-t_start)
-save_dict(training_info, os.path.join(results_dir, "training_info.npy"))
+

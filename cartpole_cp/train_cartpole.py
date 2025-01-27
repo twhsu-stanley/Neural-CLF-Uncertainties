@@ -56,7 +56,7 @@ input_args_str = "\
 --roa_pre_iters 10000\
 --roa_pre_batchsize 32\
 --roa_inner_iters 10\
---roa_outer_iters 200\
+--roa_outer_iters 60\
 --roa_train_lr 5e-6\
 --roa_lr_scheduler_step 40\
 --roa_nn_structure sum_of_two_eth\
@@ -65,13 +65,13 @@ input_args_str = "\
 --roa_batchsize 64\
 --roa_adaptive_level_multiplier False\
 --roa_adaptive_level_multiplier_step 50\
---roa_level_multiplier 2.5\
---roa_decrease_loss_coeff 0.0\
+--roa_level_multiplier 10\
+--roa_decrease_loss_coeff 500.0\
 --roa_decrease_alpha 0.1\
 --roa_decrease_offset 0.0\
 --roa_lipschitz_loss_coeff 0.0\
---roa_reg_loss_coeff 5\
---roa_reg_loss_beta 0.1\
+--roa_reg_loss_coeff 300\
+--roa_reg_loss_beta 0.15\
 --roa_c_target 0.04\
 --roa_classification_loss_coeff 2\
 --controller_nn_sizes [32,32,32,1]\
@@ -89,10 +89,10 @@ input_args_str = "\
 --controller_train_slope True\
 --verbose True\
 --image_save_format pdf\
---exp_num 3436\
+--exp_num 3915\
 --use_cuda False\
 --cutoff_radius 0.4\
---use_cp True\
+--use_cp False\
 --roa_decrease_loss_cp_coeff 500.0"
 
 input_args_temp = input_args_str.split("--")
@@ -511,7 +511,8 @@ for k in range(args.roa_outer_iters):
     idx_exp_stable = lyapunov_nn.exp_stable_set_true
     t_epoch_stop = perf_counter()
     print("Elapsed time during iteration {} in seconds:".format(k+1), t_epoch_stop-t_epoch_start)
+    save_dict(training_info, os.path.join(results_dir, "training_info.npy"))
 
 t_stop = perf_counter()
 print("Elapsed time during training and plotting in seconds:", t_stop-t_start)
-save_dict(training_info, os.path.join(results_dir, "training_info.npy"))
+

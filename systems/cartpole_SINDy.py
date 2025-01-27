@@ -23,7 +23,19 @@ for i in range(n_features):
 coefficients = model.optimizer.coef_
 
 cp_quantile = model.model_error['quantile']
-#################################################################################################
+"""
+feature_names = model["feature_names"]
+n_features = len(feature_names)
+for i in range(n_features):
+    feature_names[i] = feature_names[i].replace(" ", "*")
+    feature_names[i] = feature_names[i].replace("^", "**")
+    feature_names[i] = feature_names[i].replace("sin", "torch.sin")
+    feature_names[i] = feature_names[i].replace("cos", "torch.cos")
+
+coefficients = model["coefficients"]
+
+cp_quantile = model["model_error"]['quantile']"""
+################################################################################################
 
 class CartPole_SINDy(DeterministicFunction):
     """

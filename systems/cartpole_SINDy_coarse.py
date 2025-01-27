@@ -5,14 +5,13 @@ import torch
 from mars import config, DeterministicFunction
 
 import pickle
-import pysindy
 from .systems_utils import predict_tensor
 
 # Load the SINDy model ##########################################################################
-with open('../pysindy/control_affine_models/saved_models/model_cartpole_sindy_coarse', 'rb') as file:
+with open('../pysindy/control_affine_models/saved_models/model_cartpole_sindy_coarse_2', 'rb') as file:
     model = pickle.load(file)
 
-feature_names = model.get_feature_names()
+feature_names = model["feature_names"]
 n_features = len(feature_names)
 for i in range(n_features):
     feature_names[i] = feature_names[i].replace(" ", "*")
@@ -20,9 +19,10 @@ for i in range(n_features):
     feature_names[i] = feature_names[i].replace("sin", "torch.sin")
     feature_names[i] = feature_names[i].replace("cos", "torch.cos")
 
-coefficients = model.optimizer.coef_
+coefficients = model["coefficients"]
 
-cp_quantile = model.model_error['quantile']
+cp_quantile = 1.0 #model["model_error"]['quantile']
+print("cp_quantile = ", cp_quantile)
 #################################################################################################
 
 class CartPole_SINDy_coarse(DeterministicFunction):
