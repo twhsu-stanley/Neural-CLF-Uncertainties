@@ -154,8 +154,8 @@ def train_largest_ROA_Adam(target_set, lyapunov_nn, policy, closed_loop_dynamics
 
             decrease_loss = torch.max( \
                 dot_vnn(target_states_batch) + \
-                #alpha * torch.pow(torch.norm(torch.tensor(target_states_batch, dtype=config.ptdtype, device=config.device), p=2, dim=1), 2) + \
-                alpha * lyapunov_nn.lyapunov_function(target_states_batch).squeeze() + \
+                alpha * torch.pow(torch.norm(torch.tensor(target_states_batch, dtype=config.ptdtype, device=config.device), p=2, dim=1), 2) + \
+                #alpha * lyapunov_nn.lyapunov_function(target_states_batch).squeeze() + \
                 offset \
             , torch.tensor(0, dtype=config.ptdtype, device=config.device) \
             ).reshape(-1, 1)
@@ -169,8 +169,8 @@ def train_largest_ROA_Adam(target_set, lyapunov_nn, policy, closed_loop_dynamics
 
                 decrease_loss_cp = torch.max( \
                     dot_vnn(target_states_batch) + \
-                    #alpha * torch.pow(torch.norm(torch.tensor(target_states_batch, dtype=config.ptdtype, device=config.device), p=2, dim=1), 2) + \
-                    alpha * lyapunov_nn.lyapunov_function(target_states_batch).squeeze() + \
+                    alpha * torch.pow(torch.norm(torch.tensor(target_states_batch, dtype=config.ptdtype, device=config.device), p=2, dim=1), 2) + \
+                    #alpha * lyapunov_nn.lyapunov_function(target_states_batch).squeeze() + \
                     cp_bound + \
                     offset \
                 , torch.tensor(0, dtype=config.ptdtype, device=config.device) \
