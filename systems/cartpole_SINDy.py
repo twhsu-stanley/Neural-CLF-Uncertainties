@@ -8,7 +8,6 @@ import pickle
 from .systems_utils import predict_tensor
 
 # Load the SINDy model ##########################################################################
-"""
 with open('SINDy_models/model_cartpole_sindy', 'rb') as file:
     model = pickle.load(file)
 
@@ -24,8 +23,7 @@ coefficients = model["coefficients"]
 
 cp_quantile = model["model_error"]['quantile']
 print("cp_quantile = ", cp_quantile)
-"""
-################################################################################################
+#################################################################################################
 
 class CartPole_SINDy(DeterministicFunction):
     """

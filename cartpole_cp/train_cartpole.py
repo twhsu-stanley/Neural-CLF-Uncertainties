@@ -33,7 +33,7 @@ from mars.parser_tools import getArgs
 from examples.systems_config import all_systems 
 from examples.example_utils import build_system, LyapunovNetwork, compute_roa_ct, balanced_class_weights, generate_trajectories, save_dict, load_dict
 
-from systems import CartPole, CartPole_SINDy, CartPole_SINDy_coarse
+from systems import CartPole, CartPole_SINDy
 
 try:
     from tqdm import tqdm
@@ -56,7 +56,7 @@ input_args_str = "\
 --roa_pre_iters 10000\
 --roa_pre_batchsize 32\
 --roa_inner_iters 10\
---roa_outer_iters 60\
+--roa_outer_iters 100\
 --roa_train_lr 5e-6\
 --roa_lr_scheduler_step 40\
 --roa_nn_structure sum_of_two_eth\
@@ -66,7 +66,7 @@ input_args_str = "\
 --roa_adaptive_level_multiplier False\
 --roa_adaptive_level_multiplier_step 50\
 --roa_level_multiplier 10\
---roa_decrease_loss_coeff 500.0\
+--roa_decrease_loss_coeff 0.0\
 --roa_decrease_alpha 0.1\
 --roa_decrease_offset 0.0\
 --roa_lipschitz_loss_coeff 0.0\
@@ -89,10 +89,10 @@ input_args_str = "\
 --controller_train_slope True\
 --verbose True\
 --image_save_format pdf\
---exp_num 3915\
+--exp_num 1000\
 --use_cuda False\
 --cutoff_radius 0.4\
---use_cp False\
+--use_cp True\
 --roa_decrease_loss_cp_coeff 500.0"
 
 input_args_temp = input_args_str.split("--")
@@ -107,7 +107,7 @@ args = getArgs(input_args)
 device = config.device
 print('Pytorch using device:', device)
 exp_num = args.exp_num
-results_dir = '{}/results/exp_{:03d}'.format(str(Path(__file__).parent.parent), exp_num)
+results_dir = '{}/results/cartpole/exp_{:03d}'.format(str(Path(__file__).parent.parent), exp_num)
 if not os.path.exists(results_dir):
     os.mkdir(results_dir)
 
@@ -148,7 +148,6 @@ b_true = 0 # friction coeff
 
 # Initialize the true system
 system_true = CartPole(m_true, M_true, l_true, b_true, dt, [state_norm, action_norm])
-#system_true = CartPole_SINDy(dt, [state_norm, action_norm])
 
 # Open-loop true dynamics
 dynamics_true = lambda x, y: system_true.ode_normalized(x, y)
@@ -181,15 +180,14 @@ with open(os.path.join(results_dir, "00true_system_params.txt"), "w") as text_fi
 
 #2. Construct the nominal system
 # Nominal system params
-m_nominal = 0.3 # pendulum mass
-M_nominal = 1 # cart mass
-l_nominal = 1 # length
-b_nominal = 0 # friction coeff
+#m_nominal = 0.3 # pendulum mass
+#M_nominal = 1 # cart mass
+#l_nominal = 1 # length
+#b_nominal = 0 # friction coeff
 
 # Initialize the nominal system
 #system_nominal = CartPole(m_nominal, M_nominal, l_nominal, b_nominal, dt, [state_norm, action_norm])
 system_nominal = CartPole_SINDy(dt, [state_norm, action_norm])
-#system_nominal = CartPole_SINDy_coarse(dt, [state_norm, action_norm])
 
 # Open-loop nominal dynamics
 dynamics_nominal = lambda x, y: system_nominal.ode_normalized(x, y)

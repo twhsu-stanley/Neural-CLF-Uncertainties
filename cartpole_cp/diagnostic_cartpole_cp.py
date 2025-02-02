@@ -24,18 +24,14 @@ from mars.parser_tools import getArgs
 from examples.systems_config import all_systems 
 from examples.example_utils import load_dict
 
-from systems import CartPole, CartPole_SINDy, CartPole_SINDy_coarse
+from systems import CartPole, CartPole_SINDy
 
 import warnings
 warnings.filterwarnings("ignore")
 
-exp_num = 3200
+exp_num = 1000
 
-# results_dir = '{}/results/exp_{:03d}_keep_eg3'.format(str(Path(__file__).parent.parent), exp_num)
-# results_dir = '{}/results/exp_{:03d}'.format(str(Path(__file__).parent.parent), exp_num)
-# results_dir = '{}/results/exp_{:02d}_keep_eg3'.format(str(Path(__file__).parent.parent), exp_num)
-# results_dir = '{}/results/exp_{:02d}_eg3'.format(str(Path(__file__).parent.parent), exp_num)
-results_dir = '{}/results/exp_{:02d}'.format(str(Path(__file__).parent.parent), exp_num)
+results_dir = '{}/results/cartpole/exp_{:02d}'.format(str(Path(__file__).parent.parent), exp_num)
 
 # Plot ROAs #######################################################################################################
 """
@@ -104,7 +100,7 @@ for line in lines:
     input_args.append(b)
 args = getArgs(input_args)
 
-#args.roa_outer_iters = 20
+#args.roa_outer_iters = 50
 
 device = config.device
 print('Pytorch using device:', device)
@@ -137,8 +133,6 @@ b_true = 0 # friction coeff
 
 # Initialize the true system
 system_true = CartPole(m_true, M_true, l_true, b_true, dt, [state_norm, action_norm])
-#system_true = CartPole_SINDy(dt, [state_norm, action_norm])
-#system_true = CartPole_SINDy_coarse(dt, [state_norm, action_norm])
 
 # Open-loop true dynamics
 dynamics_true = lambda x, y: system_true.ode_normalized(x, y)
@@ -154,9 +148,7 @@ l_nominal = 1 # length
 b_nominal = 0 # friction coeff
 
 # Initialize the nominal system
-#system_nominal = CartPole(m_nominal, M_nominal, l_nominal, b_nominal, dt, [state_norm, action_norm])
 system_nominal = CartPole_SINDy(dt, [state_norm, action_norm])
-#system_nominal = CartPole_SINDy_coarse(dt, [state_norm, action_norm])
 
 # Open-loop nominal dynamics
 dynamics_nominal = lambda x, y: system_nominal.ode_normalized(x, y)
@@ -172,7 +164,7 @@ Tx, Tu = map(np.diag, system_true.normalization)
 Tx_inv, Tu_inv = map(np.diag, system_true.inv_norm)
 
 # Set initial safe set as a ball around the origin (in normalized coordinates)
-cutoff_radius    = 0.05
+cutoff_radius    = args.cutoff_radius
 initial_safe_set = np.linalg.norm(grid.all_points, ord=2, axis=1) <= cutoff_radius
 
 # Control Policies ####################################################################################
@@ -256,22 +248,31 @@ plt.tight_layout()
 plt.savefig(os.path.join(results_dir, '00sizes_of_largest_exp_stable_sets.pdf'), dpi=config.dpi)
 plt.clf()
 
-print("Determining the limit points")
 c_ub = training_info["roa_info_nn"]["nominal_c_max_exp_values"][args.roa_outer_iters]
 c_lb = training_info["roa_info_nn"]["true_c_max_exp_values"][args.roa_outer_iters]
 #c_ub = training_info["roa_info_nn"]["nominal_c_max_values"][args.roa_outer_iters]
 #c_lb = training_info["roa_info_nn"]["true_c_max_values"][args.roa_outer_iters]
 ind_higher = lyapunov_nn.values.detach().cpu().numpy().ravel() <= c_ub
-ind_lower = lyapunov_nn.values.detach().cpu().numpy().ravel() <= min(c_ub - 0.001, c_lb)
+ind_lower = lyapunov_nn.values.detach().cpu().numpy().ravel() <= c_ub - 0.001 #c_lb
 ind = np.logical_and(ind_higher, ~ind_lower)
-print(np.sum(ind))
+print("Number of initial states sampled on the edge of the ROA:", np.sum(ind))
+
+# Calculate the parameters of exponential stability (M and gamma)
+ind_delta = lyapunov_nn.values.detach().cpu().numpy().ravel() <= 0.01 # exclude the region close to zero to avoid numerical errors
+roa_set = grid.all_points[np.logical_and(ind_higher, ~ind_delta)]
+v_to_x_ratio = lyapunov_nn.lyapunov_function(roa_set).squeeze() / torch.pow(torch.norm(torch.tensor(roa_set, dtype=config.ptdtype, device=config.device), p=2, dim=1), 2)
+c1 = min(v_to_x_ratio).detach().cpu().item() # c1*||x||^2 <= V(x) <= c2*||x||^2
+#c2 = max(v_to_x_ratio).detach().cpu().item()
+V0 = c_ub
+M = V0/c1
+gamma = args.roa_decrease_alpha/c1
 
 # Simulate the Trajectories #######################################################################################################
 horizon = 600 
 dt = 0.01
 time = [i*dt for i in range(horizon)]
 target_set = grid.all_points[ind]
-batch_inds = np.random.choice(target_set.shape[0], min(100, target_set.shape[0]), replace=False)
+batch_inds = np.random.choice(target_set.shape[0], min(50, target_set.shape[0]), replace=False)
 end_states = target_set[batch_inds]
 
 trajectories = np.empty((end_states.shape[0], end_states.shape[1], horizon))
@@ -346,6 +347,18 @@ plt.savefig(os.path.join(results_dir, '00traj_test_omega.pdf'), dpi=config.dpi)
 plt.clf()
 
 for i in range(end_states.shape[0]):
+    norm = np.linalg.norm(trajectories[i, :, :], ord=2, axis=0)
+    plt.plot(time, norm, linewidth = lw, label = "Trajectory " + str(i+1))
+plt.plot(time, np.sqrt(M) * np.exp(-gamma/2 * np.array(time)), color='red', linestyle='--', linewidth = 2.5)
+plt.xticks(fontsize = ticksize)
+plt.yticks(fontsize = ticksize)
+plt.xlabel(r"time (s)", fontsize=labelsize)
+plt.ylabel(r"norm of states", fontsize=labelsize)
+plt.tight_layout()
+plt.savefig(os.path.join(results_dir, '00traj_test_normalized_norm.pdf'), dpi=config.dpi)
+plt.clf()
+
+for i in range(end_states.shape[0]):
     norm = np.linalg.norm(trajectories_denormalized[i, :, :], ord=2, axis=0)
     plt.plot(time, norm, linewidth = lw, label = "Trajectory " + str(i+1))
 plt.xticks(fontsize = ticksize)
@@ -359,6 +372,7 @@ plt.clf()
 for i in range(end_states.shape[0]):
     V = lyapunov_nn.lyapunov_function(trajectories[i, :, :].T) # use normalized traj for computing CLF
     plt.plot(time, V.detach().numpy(), linewidth = lw, label = "Trajectory " + str(i+1))
+plt.plot(time, V0 * np.exp(-gamma * np.array(time)), color='red', linestyle='--', linewidth = 2.5)
 plt.xticks(fontsize = ticksize)
 plt.yticks(fontsize = ticksize)
 plt.xlabel(r"time (s)", fontsize=labelsize)
