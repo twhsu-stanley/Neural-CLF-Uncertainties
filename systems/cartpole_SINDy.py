@@ -5,30 +5,30 @@ import torch
 from mars import config, DeterministicFunction
 
 import pickle
-import pysindy
 from .systems_utils import predict_tensor
 
-# Load the SINDy model
-with open('../pysindy/control_affine_models/saved_models/model_cartpole_sindy', 'rb') as file:
+# Load the SINDy model ##########################################################################
+with open('SINDy_models/model_cartpole_sindy', 'rb') as file:
     model = pickle.load(file)
 
-# TODO: make this a member of the model class ###########################
-feature_names = model.get_feature_names()
+feature_names = model["feature_names"]
 n_features = len(feature_names)
 for i in range(n_features):
     feature_names[i] = feature_names[i].replace(" ", "*")
     feature_names[i] = feature_names[i].replace("^", "**")
     feature_names[i] = feature_names[i].replace("sin", "torch.sin")
     feature_names[i] = feature_names[i].replace("cos", "torch.cos")
-#########################################################################
+
+coefficients = model["coefficients"]
+
+cp_quantile = model["model_error"]['quantile']
+print("cp_quantile = ", cp_quantile)
+#################################################################################################
 
 class CartPole_SINDy(DeterministicFunction):
     """
     Parameters
     ----------
-    pendulum_mass : float
-    cart_mass : float
-    length : float
     dt : float, optional
         The sampling period used for discretization.
     normalization : tuple, optional
@@ -40,10 +40,11 @@ class CartPole_SINDy(DeterministicFunction):
     def __init__(self, dt=0.01, normalization=None):
         """Initialization; see `CartPole`.""" 
         super(CartPole_SINDy, self).__init__()
-        #self.pendulum_mass = pendulum_mass
-        #self.cart_mass = cart_mass
-        #self.length = length
-        #self.friction = friction
+        # TODO: make these inputs of the constructor
+        self.feature_names = feature_names
+        self.coefficients = coefficients
+        self.cp_quantile = cp_quantile
+
         self.dt = dt
         self.gravity = 9.81
         self.state_dim = 4
@@ -147,15 +148,15 @@ class CartPole_SINDy(DeterministicFunction):
 
         """
         # Compute f(x, u) using the SINDy model
-        state_derivative_sindy = predict_tensor(state, action, feature_names, model.optimizer.coef_)
+        state_derivative_sindy = predict_tensor(state, action, self.feature_names, self.coefficients)
 
         #state2 = state.clone()
         #action2 = action.clone()
         #Theta = model.get_regressor(state2.detach().numpy(), action2.detach().numpy())
-        #coeff = model.optimizer.coef_
+        #coeff = self.coefficients
         #state_derivative_sindy2 = Theta @ coeff.T
         #state_derivative_sindy2 = torch.tensor(state_derivative_sindy2) # Convert AxesArray to tensor
-
+        
         #assert torch.all(abs(state_derivative_sindy2 - state_derivative_sindy) < 1e-5)
 
         return state_derivative_sindy

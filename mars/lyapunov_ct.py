@@ -384,9 +384,11 @@ class Lyapunov_CT(object):
                 if self.decrease_thresh is not None \
                 else self.threshold(torch.tensor(states, dtype=config.ptdtype), self.tau)
             dot_vnn = lambda x: torch.sum(torch.mul(self.grad_lyapunov_function(x), closed_loop_dynamics(x)), dim=1)
-            decrease = torch.add(dot_vnn(states), \
-                alpha*torch.pow(torch.norm(torch.tensor(states, dtype=config.ptdtype,\
-                device=config.device), p=2, dim = 1),2)).reshape(-1, 1)
+            decrease = torch.add( \
+                            dot_vnn(states), \
+                            alpha * torch.pow(torch.norm(torch.tensor(states, dtype=config.ptdtype, device=config.device), p=2, dim=1), 2) \
+                        ).reshape(-1, 1)
+
             exp_stable = torch.squeeze(torch.lt(decrease, thresh)).detach().cpu().numpy()
             safe_batch |= exp_stable
             safe_batch &= roa_true_batch
@@ -449,4 +451,20 @@ class Lyapunov_CT(object):
         setattr(self, 'largest_exp_stable_set_' + true_or_nominal, largest_exp_stable_set.detach().cpu().numpy().ravel())
         setattr(self, 'c_max_exp_' + true_or_nominal, c_max_exp_tmp)
         
+    def traj_clf_violation(self, traj, alpha):
+        # Check if there are any violations of the clf conditions along the given trajectory
+        # traj: trajectory data (number_time_steps, state_dimension)
+        
+        closed_loop_dynamics_true = getattr(self, 'closed_loop_dynamics_true')
+        
+        dot_vnn_true = lambda x: torch.sum(torch.mul(self.grad_lyapunov_function(x), closed_loop_dynamics_true(x)), dim=1)
 
+        decrease_true = torch.add( \
+            dot_vnn_true(traj), \
+            alpha * torch.pow(torch.norm(torch.tensor(traj, dtype=config.ptdtype, device=config.device), p=2, dim=1), 2) \
+        ).reshape(-1, 1)
+
+        num_violations = sum(decrease_true > 1e-4)
+
+        return num_violations.detach().cpu().item()
+        

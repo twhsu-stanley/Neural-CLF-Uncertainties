@@ -44,7 +44,7 @@ import random
 import argparse
 warnings.filterwarnings("ignore")
 
-exp_num = 1000
+exp_num = 2000
 
 # results_dir = '{}/results/exp_{:03d}_keep_eg3'.format(str(Path(__file__).parent.parent), exp_num)
 # results_dir = '{}/results/exp_{:02d}_keep_eg3'.format(str(Path(__file__).parent.parent), exp_num)
@@ -91,13 +91,13 @@ l_true = 1 # length
 b_true = 0 # friction coeff
 
 # Initialize the true system
-true_system = CartPole(m_true, M_true, l_true, b_true, dt, [state_norm, action_norm])
+system_true = CartPole(m_true, M_true, l_true, b_true, dt, [state_norm, action_norm])
 
 # Open-loop true dynamics
-true_dynamics = lambda x, y: true_system.ode_normalized(x, y)
+dynamics_true = lambda x, y: system_true.ode_normalized(x, y)
 
-state_dim = true_system.state_dim
-action_dim = true_system.action_dim
+state_dim = system_true.state_dim
+action_dim = system_true.action_dim
 
 #2. Construct the nominal system
 # Nominal system params
@@ -107,11 +107,11 @@ l_nominal = 1 # length
 b_nominal = 0 # friction coeff
 
 # Initialize the nominal system
-#nominal_system = CartPole(m_nominal, M_nominal, l_nominal, b_nominal, dt, [state_norm, action_norm])
-nominal_system = CartPole_SINDy(dt, [state_norm, action_norm])
+#system_nominal = CartPole(m_nominal, M_nominal, l_nominal, b_nominal, dt, [state_norm, action_norm])
+system_nominal = CartPole_SINDy(dt, [state_norm, action_norm])
 
 # Open-loop nominal dynamics
-nominal_dynamics = lambda x, y: nominal_system.ode_normalized(x, y)
+dynamics_nominal = lambda x, y: system_nominal.ode_normalized(x, y)
 
 # Set up computation domain and the initial safe set
 # State grid
@@ -119,9 +119,9 @@ grid_limits = np.array([[-1., 1.], ] * state_dim)
 resolution = args.grid_resolution # Number of states divisions each dimension
 grid = mars.GridWorld(grid_limits, resolution)
 tau = np.sum(grid.unit_maxes) / 2
-u_max = true_system.normalization[1].item()
-Tx, Tu = map(np.diag, true_system.normalization)
-Tx_inv, Tu_inv = map(np.diag, true_system.inv_norm)
+u_max = system_true.normalization[1].item()
+Tx, Tu = map(np.diag, system_true.normalization)
+Tx_inv, Tu_inv = map(np.diag, system_true.inv_norm)
 
 # Set initial safe set as a ball around the origin (in normalized coordinates)
 cutoff_radius    = 0.4
@@ -129,7 +129,7 @@ initial_safe_set = np.linalg.norm(grid.all_points, ord=2, axis=1) <= cutoff_radi
 
 # Control Policies ####################################################################################
 #1. LQR policy
-A, B = nominal_system.linearize_ct()
+A, B = system_nominal.linearize_ct()
 Q = np.identity(state_dim).astype(config.np_dtype)  # state cost matrix
 R = np.identity(action_dim).astype(config.np_dtype)  # action cost matrix
 K_lqr, P_lqr = mars.utils.lqr(A, B, Q, R)
@@ -154,8 +154,8 @@ policy = mars.NonLinearControllerLooseThreshWithLinearPartMulSlope(state_dim, co
     'high_slope':0.0, 'train_slope':args.controller_train_slope, 'slope_multiplier':args.controller_slope_multiplier})
 
 # Close loop dynamics with NN control policy
-true_closed_loop_dynamics = lambda states: true_dynamics(torch.tensor(states, device = device), policy(torch.tensor(states, device = device)))
-nominal_closed_loop_dynamics = lambda states: nominal_dynamics(torch.tensor(states, device = device), policy(torch.tensor(states, device = device)))
+closed_loop_dynamics_true = lambda states: dynamics_true(torch.tensor(states, device = device), policy(torch.tensor(states, device = device)))
+closed_loop_dynamics_nominal = lambda states: dynamics_nominal(torch.tensor(states, device = device), policy(torch.tensor(states, device = device)))
 
 # Initialize the Lyapunov functions ###################################################################
 #1. Initialize the Quadratic Lyapunov function for the LQR controller and its induced ROA
@@ -167,7 +167,7 @@ grad_lyapunov_function = mars.LinearSystem((2 * P_lqr,))
 L_v = lambda x: torch.norm(grad_lyapunov_function(x), p=1, dim=1, keepdim=True) # Lipschitz constant of the Lyapunov function
 L_dv = lambda x: torch.norm(torch.tensor(2 * P_lqr, dtype=config.ptdtype, device=device))
 lyapunov_lqr = mars.Lyapunov_CT(grid, lyapunov_function, grad_lyapunov_function,\
-     true_closed_loop_dynamics, nominal_closed_loop_dynamics, L_dyn, L_v, L_dv, tau, initial_safe_set, decrease_thresh=0)
+     closed_loop_dynamics_true, closed_loop_dynamics_nominal, L_dyn, L_v, L_dv, tau, initial_safe_set, decrease_thresh=0)
 lyapunov_lqr.update_values()
 
 #2.1 Initialize the NN Lyapunov Function
@@ -177,7 +177,7 @@ decrease_thresh = args.lyapunov_decrease_threshold
 # Initialize nn Lyapunov
 L_pol = lambda x: np.linalg.norm(-K, 1) 
 L_dyn = lambda x: np.linalg.norm(A, 1) + np.linalg.norm(B, 1) * L_pol(x) 
-lyapunov_nn, grad_lyapunov_nn, dv_nn, L_v, tau = initialize_lyapunov_nn(grid, true_closed_loop_dynamics, None, L_dyn, 
+lyapunov_nn, grad_lyapunov_nn, dv_nn, L_v, tau = initialize_lyapunov_nn(grid, closed_loop_dynamics_true, None, L_dyn, 
             initial_safe_set, decrease_thresh, args.roa_nn_structure, state_dim, layer_dims, 
             layer_activations)
 #####################################################################################################################
@@ -200,7 +200,7 @@ policy = load_controller_nn(policy, full_path=os.path.join(results_dir, 'init_co
 lyapunov_nn = load_lyapunov_nn(lyapunov_nn, full_path=os.path.join(results_dir, 'pretrained_lyapunov_nn.net'))
 horizon = 4000 
 tol = 0.01 
-roa_true, trajs = compute_roa_ct(grid, true_closed_loop_dynamics, dt, horizon, tol, no_traj=False)
+roa_true, trajs = compute_roa_ct(grid, closed_loop_dynamics_true, dt, horizon, tol, no_traj=False)
 forward_invariant = np.zeros_like(roa_true, dtype=bool)
 tmp = np.zeros([sum(roa_true),], dtype=bool)
 trajs_abs = np.abs(trajs)[roa_true]
@@ -223,9 +223,9 @@ for k in range(args.roa_outer_iters):
     # lyapunov_nn = load_lyapunov_nn(lyapunov_nn, full_path=os.path.join(results_dir, 'trained_lyapunov_nn_iter_{}.net'.format(k+1)))
     
     # Close loop dynamics and true region of attraction
-    #closed_loop_dynamics = lambda states: true_dynamics(torch.tensor(states, device = device), policy(torch.tensor(states, device = device)))
+    #closed_loop_dynamics = lambda states: dynamics_true(torch.tensor(states, device = device), policy(torch.tensor(states, device = device)))
 
-    roa_true, trajs = compute_roa_ct(grid, true_closed_loop_dynamics, dt, horizon, tol, no_traj=False)
+    roa_true, trajs = compute_roa_ct(grid, closed_loop_dynamics_true, dt, horizon, tol, no_traj=False)
     forward_invariant = np.zeros_like(roa_true, dtype=bool)
     tmp = np.zeros([sum(roa_true),], dtype=bool)
     trajs_abs = np.abs(trajs)[roa_true]
