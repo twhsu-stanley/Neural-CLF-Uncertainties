@@ -67,7 +67,7 @@ input_args_str = "\
 --roa_adaptive_level_multiplier_step 50\
 --roa_level_multiplier 10\
 --roa_decrease_loss_coeff 0.0\
---roa_decrease_alpha 0.1\
+--roa_decrease_alpha 0.5\
 --roa_decrease_offset 0.0\
 --roa_lipschitz_loss_coeff 0.0\
 --roa_reg_loss_coeff 300\
@@ -89,7 +89,7 @@ input_args_str = "\
 --controller_train_slope True\
 --verbose True\
 --image_save_format pdf\
---exp_num 1000\
+--exp_num 3000\
 --use_cuda False\
 --cutoff_radius 0.4\
 --use_cp True\

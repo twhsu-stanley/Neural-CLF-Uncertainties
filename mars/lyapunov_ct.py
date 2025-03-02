@@ -386,7 +386,8 @@ class Lyapunov_CT(object):
             dot_vnn = lambda x: torch.sum(torch.mul(self.grad_lyapunov_function(x), closed_loop_dynamics(x)), dim=1)
             decrease = torch.add( \
                             dot_vnn(states), \
-                            alpha * torch.pow(torch.norm(torch.tensor(states, dtype=config.ptdtype, device=config.device), p=2, dim=1), 2) \
+                            #alpha * torch.pow(torch.norm(torch.tensor(states, dtype=config.ptdtype, device=config.device), p=2, dim=1), 2) \
+                            alpha * self.lyapunov_function(states).squeeze()
                         ).reshape(-1, 1)
 
             exp_stable = torch.squeeze(torch.lt(decrease, thresh)).detach().cpu().numpy()
@@ -461,7 +462,8 @@ class Lyapunov_CT(object):
 
         decrease_true = torch.add( \
             dot_vnn_true(traj), \
-            alpha * torch.pow(torch.norm(torch.tensor(traj, dtype=config.ptdtype, device=config.device), p=2, dim=1), 2) \
+            #alpha * torch.pow(torch.norm(torch.tensor(traj, dtype=config.ptdtype, device=config.device), p=2, dim=1), 2) \
+            alpha * self.lyapunov_function(traj).squeeze()
         ).reshape(-1, 1)
 
         num_violations = sum(decrease_true > 1e-4)

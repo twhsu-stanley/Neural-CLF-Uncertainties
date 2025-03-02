@@ -262,13 +262,17 @@ ind_delta = lyapunov_nn.values.detach().cpu().numpy().ravel() <= 0.01 # exclude 
 roa_set = grid.all_points[np.logical_and(ind_higher, ~ind_delta)]
 v_to_x_ratio = lyapunov_nn.lyapunov_function(roa_set).squeeze() / torch.pow(torch.norm(torch.tensor(roa_set, dtype=config.ptdtype, device=config.device), p=2, dim=1), 2)
 c1 = min(v_to_x_ratio).detach().cpu().item() # c1*||x||^2 <= V(x) <= c2*||x||^2
-#c2 = max(v_to_x_ratio).detach().cpu().item()
+c2 = max(v_to_x_ratio).detach().cpu().item()
 V0 = c_ub
-M = V0/c1
-gamma = args.roa_decrease_alpha/c1
+#M = V0/c1
+gamma = args.roa_decrease_alpha #/c2
+
+# Estimate Lipchitz constant
+gradV = lyapunov_nn.grad_lyapunov_function(roa_set).squeeze()
+Lv = torch.max(torch.norm(gradV, p=2, dim=1)).detach().cpu().item()
 
 # Simulate the Trajectories #######################################################################################################
-horizon = 600 
+horizon = 400 
 dt = 0.01
 time = [i*dt for i in range(horizon)]
 target_set = grid.all_points[ind]
@@ -291,11 +295,12 @@ for i in range(end_states.shape[0]):
     num_violations += lyapunov_nn.traj_clf_violation((trajectories[i, :, :]).squeeze().T, args.roa_decrease_alpha)
 print("Total traj data points:", trajectories.shape[0] * trajectories.shape[2])
 print("Total traj data points that violate the CLF condition:", num_violations)
+print("Violation score = ",num_violations/(trajectories.shape[0] * trajectories.shape[2]) * 100)
 
 # Plot the Trajectories ###########################################################################################################
 plot_limits = np.dot(Tx, grid_limits)
-labelsize = 50
-ticksize = 40
+labelsize = 25
+ticksize = 20
 lw = 1
 fig = plt.figure(figsize=(10, 7), dpi=config.dpi, frameon=False)
 plt.rc('text', usetex=True)
@@ -305,7 +310,7 @@ for i in range(end_states.shape[0]):
     plt.plot(time, trajectories_denormalized[i, 0, :], linewidth = lw, label = "Trajectory " + str(i+1))
 plt.xticks(fontsize = ticksize)
 plt.yticks(fontsize = ticksize)
-plt.xlabel(r"time (s)", fontsize=labelsize)
+plt.xlabel(r"Time (s)", fontsize=labelsize)
 plt.ylabel(r"$x$", fontsize=labelsize)
 #plt.ylim(plot_limits[0])
 plt.tight_layout()
@@ -316,7 +321,7 @@ for i in range(end_states.shape[0]):
     plt.plot(time, trajectories_denormalized[i, 1, :], linewidth = lw, label = "Trajectory " + str(i+1))
 plt.xticks(fontsize = ticksize)
 plt.yticks(fontsize = ticksize)
-plt.xlabel(r"time (s)", fontsize=labelsize)
+plt.xlabel(r"Time (s)", fontsize=labelsize)
 plt.ylabel(r"$\theta$", fontsize=labelsize)
 #plt.ylim(plot_limits[1])
 plt.ylim([-0.3, 0.3])
@@ -328,7 +333,7 @@ for i in range(end_states.shape[0]):
     plt.plot(time, trajectories_denormalized[i, 2, :], linewidth = lw, label = "Trajectory " + str(i+1))
 plt.xticks(fontsize = ticksize)
 plt.yticks(fontsize = ticksize)
-plt.xlabel(r"time (s)", fontsize=labelsize)
+plt.xlabel(r"Time (s)", fontsize=labelsize)
 plt.ylabel(r"$v$", fontsize=labelsize)
 #plt.ylim(plot_limits[2])
 plt.tight_layout()
@@ -339,7 +344,7 @@ for i in range(end_states.shape[0]):
     plt.plot(time, trajectories_denormalized[i, 3, :], linewidth = lw, label = "Trajectory " + str(i+1))
 plt.xticks(fontsize = ticksize)
 plt.yticks(fontsize = ticksize)
-plt.xlabel(r"time (s)", fontsize=labelsize)
+plt.xlabel(r"Time (s)", fontsize=labelsize)
 plt.ylabel(r"$\omega$", fontsize=labelsize)
 #plt.ylim(plot_limits[3])
 plt.tight_layout()
@@ -349,10 +354,10 @@ plt.clf()
 for i in range(end_states.shape[0]):
     norm = np.linalg.norm(trajectories[i, :, :], ord=2, axis=0)
     plt.plot(time, norm, linewidth = lw, label = "Trajectory " + str(i+1))
-plt.plot(time, np.sqrt(M) * np.exp(-gamma/2 * np.array(time)), color='red', linestyle='--', linewidth = 2.5)
+#plt.plot(time, np.sqrt(M) * np.exp(-gamma/2 * np.array(time)), color='red', linestyle='--', linewidth = 2.5)
 plt.xticks(fontsize = ticksize)
 plt.yticks(fontsize = ticksize)
-plt.xlabel(r"time (s)", fontsize=labelsize)
+plt.xlabel(r"Time (s)", fontsize=labelsize)
 plt.ylabel(r"norm of states", fontsize=labelsize)
 plt.tight_layout()
 plt.savefig(os.path.join(results_dir, '00traj_test_normalized_norm.pdf'), dpi=config.dpi)
@@ -363,7 +368,7 @@ for i in range(end_states.shape[0]):
     plt.plot(time, norm, linewidth = lw, label = "Trajectory " + str(i+1))
 plt.xticks(fontsize = ticksize)
 plt.yticks(fontsize = ticksize)
-plt.xlabel(r"time (s)", fontsize=labelsize)
+plt.xlabel(r"Time (s)", fontsize=labelsize)
 plt.ylabel(r"norm of states", fontsize=labelsize)
 plt.tight_layout()
 plt.savefig(os.path.join(results_dir, '00traj_test_norm.pdf'), dpi=config.dpi)
@@ -371,12 +376,16 @@ plt.clf()
 
 for i in range(end_states.shape[0]):
     V = lyapunov_nn.lyapunov_function(trajectories[i, :, :].T) # use normalized traj for computing CLF
-    plt.plot(time, V.detach().numpy(), linewidth = lw, label = "Trajectory " + str(i+1))
-plt.plot(time, V0 * np.exp(-gamma * np.array(time)), color='red', linestyle='--', linewidth = 2.5)
+    plt.plot(time, V.detach().numpy(), linewidth = lw, label = "Trajectory " + str(i+1), alpha=0.5)
+plt.plot(time, V0 * np.exp(-gamma * np.array(time)), color='red', linestyle='--', linewidth = 5)
+#plt.plot(time, V0 * np.exp(-gamma * np.array(time)) + Lv*system_nominal.cp_quantile/gamma * (1-np.exp(-gamma * np.array(time))), color='blue', linestyle='--', linewidth = 2.5)
 plt.xticks(fontsize = ticksize)
 plt.yticks(fontsize = ticksize)
-plt.xlabel(r"time (s)", fontsize=labelsize)
-plt.ylabel(r"CLF", fontsize=labelsize)
+plt.xlabel(r"Time (s)", fontsize=labelsize)
+plt.ylabel(r"$V(x_t)$", fontsize=labelsize)
+plt.xlim(left = 0)
+plt.ylim(bottom = 0)
+plt.grid(True)
 plt.tight_layout()
 plt.savefig(os.path.join(results_dir, '00traj_test_CLF.pdf'), dpi=config.dpi)
 plt.clf()
@@ -388,7 +397,7 @@ for i in range(end_states.shape[0]):
     plt.plot(time, u, linewidth = lw, label = "Trajectory " + str(i+1))
 plt.xticks(fontsize = ticksize)
 plt.yticks(fontsize = ticksize)
-plt.xlabel(r"time (s)", fontsize=labelsize)
+plt.xlabel(r"Time (s)", fontsize=labelsize)
 plt.ylabel(r"$u$", fontsize=labelsize)
 plt.tight_layout()
 plt.savefig(os.path.join(results_dir, '00traj_test_u.pdf'), dpi=config.dpi)
