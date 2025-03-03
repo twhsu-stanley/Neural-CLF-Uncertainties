@@ -8,7 +8,7 @@ import pickle
 from .systems_utils import predict_tensor
 
 # Load the SINDy model ##########################################################################
-with open('SINDy_models/model_cartpole_traj_sindy', 'rb') as file:
+with open('SINDy_models/model_cartpole_traj_big_sindy', 'rb') as file:
     model = pickle.load(file)
 
 feature_names = model["feature_names"]
