@@ -100,7 +100,7 @@ for line in lines:
     input_args.append(b)
 args = getArgs(input_args)
 
-#args.roa_outer_iters = 102
+#args.roa_outer_iters = 150
 
 device = config.device
 print('Pytorch using device:', device)
@@ -248,7 +248,7 @@ plt.tight_layout()
 plt.savefig(os.path.join(results_dir, '00sizes_of_largest_exp_stable_sets.pdf'), dpi=config.dpi)
 plt.clf()
 
-c_ub = training_info["roa_info_nn"]["nominal_c_max_exp_values"][args.roa_outer_iters]
+c_ub = 0.1#training_info["roa_info_nn"]["nominal_c_max_exp_values"][args.roa_outer_iters]
 #c_lb = training_info["roa_info_nn"]["true_c_max_exp_values"][args.roa_outer_iters]
 #c_ub = training_info["roa_info_nn"]["nominal_c_max_values"][args.roa_outer_iters]
 #c_lb = training_info["roa_info_nn"]["true_c_max_values"][args.roa_outer_iters]
@@ -260,7 +260,7 @@ print("Number of initial states sampled on the edge of the ROA:", np.sum(ind))
 V0 = c_ub
 
 # Simulate the Trajectories #######################################################################################################
-horizon = 500 
+horizon = 500
 dt = 0.01
 time = [i*dt for i in range(horizon)]
 target_set = grid.all_points[ind]
@@ -287,8 +287,8 @@ print("Violation score = ",num_violations/(trajectories.shape[0] * trajectories.
 
 # Plot the Trajectories ###########################################################################################################
 plot_limits = np.dot(Tx, grid_limits)
-labelsize = 25
-ticksize = 20
+labelsize = 30
+ticksize = 30
 lw = 1
 fig = plt.figure(figsize=(10, 7), dpi=config.dpi, frameon=False)
 plt.rc('text', usetex=True)
@@ -361,14 +361,27 @@ plt.tight_layout()
 plt.savefig(os.path.join(results_dir, '00traj_test_norm.pdf'), dpi=config.dpi)
 plt.clf()
 
+if args.roa_decrease_loss_cp_coeff > 0:
+    use_cp = True
+else:
+    use_cp = False
+
 for i in range(end_states.shape[0]):
     V = lyapunov_nn.lyapunov_function(trajectories[i, :, :].T) # use normalized traj for computing CLF
-    plt.plot(time, V.detach().numpy(), linewidth = lw, label = "Trajectory " + str(i+1), alpha=0.5)
+    if use_cp:
+        red = 0
+        green = np.random.rand(1)[0] * 0.5 + 0.1
+        blue = 1
+    else:
+        red = 1
+        green = np.random.rand(1)[0] * 0.2 + 0.3
+        blue = np.random.rand(1)[0] * 0.2 + 0.3
+    plt.plot(time, V.detach().numpy(), linewidth = lw, label = "Trajectory " + str(i+1), alpha=0.5, color=(red, green, blue))
 plt.plot(time, V0 * np.exp(-args.roa_decrease_alpha * np.array(time)), color='red', linestyle='--', linewidth = 5)
 plt.xticks(fontsize = ticksize)
 plt.yticks(fontsize = ticksize)
 plt.xlabel(r"Time (s)", fontsize=labelsize)
-plt.ylabel(r"$V(x_t)$", fontsize=labelsize)
+plt.ylabel(r"$V_{\theta_V^\star}(x_t)$", fontsize=labelsize)
 plt.xlim(0, 5)
 plt.ylim(bottom = 0)
 plt.grid(True)
