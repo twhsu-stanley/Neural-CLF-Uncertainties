@@ -56,7 +56,7 @@ input_args_str = "\
 --roa_pre_iters 10000\
 --roa_pre_batchsize 32\
 --roa_inner_iters 10\
---roa_outer_iters 100\
+--roa_outer_iters 150\
 --roa_train_lr 5e-6\
 --roa_lr_scheduler_step 40\
 --roa_nn_structure sum_of_two_eth\
@@ -67,7 +67,7 @@ input_args_str = "\
 --roa_adaptive_level_multiplier_step 50\
 --roa_level_multiplier 10\
 --roa_decrease_loss_coeff 0.0\
---roa_decrease_alpha 0.5\
+--roa_decrease_alpha 1.0\
 --roa_decrease_offset 0.0\
 --roa_lipschitz_loss_coeff 0.0\
 --roa_reg_loss_coeff 300\
@@ -89,7 +89,7 @@ input_args_str = "\
 --controller_train_slope True\
 --verbose True\
 --image_save_format pdf\
---exp_num 3000\
+--exp_num 9000\
 --use_cuda False\
 --cutoff_radius 0.4\
 --use_cp True\
