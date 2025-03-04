@@ -29,7 +29,7 @@ from systems import CartPole, CartPole_SINDy
 import warnings
 warnings.filterwarnings("ignore")
 
-exp_num = 1000
+exp_num = 10000
 
 results_dir = '{}/results/cartpole/exp_{:02d}'.format(str(Path(__file__).parent.parent), exp_num)
 
@@ -100,7 +100,7 @@ for line in lines:
     input_args.append(b)
 args = getArgs(input_args)
 
-#args.roa_outer_iters = 50
+#args.roa_outer_iters = 102
 
 device = config.device
 print('Pytorch using device:', device)
@@ -249,7 +249,7 @@ plt.savefig(os.path.join(results_dir, '00sizes_of_largest_exp_stable_sets.pdf'),
 plt.clf()
 
 c_ub = training_info["roa_info_nn"]["nominal_c_max_exp_values"][args.roa_outer_iters]
-c_lb = training_info["roa_info_nn"]["true_c_max_exp_values"][args.roa_outer_iters]
+#c_lb = training_info["roa_info_nn"]["true_c_max_exp_values"][args.roa_outer_iters]
 #c_ub = training_info["roa_info_nn"]["nominal_c_max_values"][args.roa_outer_iters]
 #c_lb = training_info["roa_info_nn"]["true_c_max_values"][args.roa_outer_iters]
 ind_higher = lyapunov_nn.values.detach().cpu().numpy().ravel() <= c_ub
@@ -257,26 +257,14 @@ ind_lower = lyapunov_nn.values.detach().cpu().numpy().ravel() <= c_ub - 0.001 #c
 ind = np.logical_and(ind_higher, ~ind_lower)
 print("Number of initial states sampled on the edge of the ROA:", np.sum(ind))
 
-# Calculate the parameters of exponential stability (M and gamma)
-ind_delta = lyapunov_nn.values.detach().cpu().numpy().ravel() <= 0.01 # exclude the region close to zero to avoid numerical errors
-roa_set = grid.all_points[np.logical_and(ind_higher, ~ind_delta)]
-v_to_x_ratio = lyapunov_nn.lyapunov_function(roa_set).squeeze() / torch.pow(torch.norm(torch.tensor(roa_set, dtype=config.ptdtype, device=config.device), p=2, dim=1), 2)
-c1 = min(v_to_x_ratio).detach().cpu().item() # c1*||x||^2 <= V(x) <= c2*||x||^2
-c2 = max(v_to_x_ratio).detach().cpu().item()
 V0 = c_ub
-#M = V0/c1
-gamma = args.roa_decrease_alpha #/c2
-
-# Estimate Lipchitz constant
-gradV = lyapunov_nn.grad_lyapunov_function(roa_set).squeeze()
-Lv = torch.max(torch.norm(gradV, p=2, dim=1)).detach().cpu().item()
 
 # Simulate the Trajectories #######################################################################################################
-horizon = 400 
+horizon = 500 
 dt = 0.01
 time = [i*dt for i in range(horizon)]
 target_set = grid.all_points[ind]
-batch_inds = np.random.choice(target_set.shape[0], min(50, target_set.shape[0]), replace=False)
+batch_inds = np.random.choice(target_set.shape[0], min(100, target_set.shape[0]), replace=False)
 end_states = target_set[batch_inds]
 
 trajectories = np.empty((end_states.shape[0], end_states.shape[1], horizon))
@@ -354,7 +342,6 @@ plt.clf()
 for i in range(end_states.shape[0]):
     norm = np.linalg.norm(trajectories[i, :, :], ord=2, axis=0)
     plt.plot(time, norm, linewidth = lw, label = "Trajectory " + str(i+1))
-#plt.plot(time, np.sqrt(M) * np.exp(-gamma/2 * np.array(time)), color='red', linestyle='--', linewidth = 2.5)
 plt.xticks(fontsize = ticksize)
 plt.yticks(fontsize = ticksize)
 plt.xlabel(r"Time (s)", fontsize=labelsize)
@@ -377,13 +364,12 @@ plt.clf()
 for i in range(end_states.shape[0]):
     V = lyapunov_nn.lyapunov_function(trajectories[i, :, :].T) # use normalized traj for computing CLF
     plt.plot(time, V.detach().numpy(), linewidth = lw, label = "Trajectory " + str(i+1), alpha=0.5)
-plt.plot(time, V0 * np.exp(-gamma * np.array(time)), color='red', linestyle='--', linewidth = 5)
-#plt.plot(time, V0 * np.exp(-gamma * np.array(time)) + Lv*system_nominal.cp_quantile/gamma * (1-np.exp(-gamma * np.array(time))), color='blue', linestyle='--', linewidth = 2.5)
+plt.plot(time, V0 * np.exp(-args.roa_decrease_alpha * np.array(time)), color='red', linestyle='--', linewidth = 5)
 plt.xticks(fontsize = ticksize)
 plt.yticks(fontsize = ticksize)
 plt.xlabel(r"Time (s)", fontsize=labelsize)
 plt.ylabel(r"$V(x_t)$", fontsize=labelsize)
-plt.xlim(left = 0)
+plt.xlim(0, 5)
 plt.ylim(bottom = 0)
 plt.grid(True)
 plt.tight_layout()
